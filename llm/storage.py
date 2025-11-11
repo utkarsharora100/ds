@@ -151,6 +151,89 @@ def logout(conn, token: str):
     return True
 
 
+# ---------------- MOVIE MANAGEMENT FUNCTIONS ----------------
+
+def add_movie_to_db(conn, movie: str, city: str, seats: int = 50):
+    """
+    Add a new movie with available seats to the database.
+    Returns True on success, False if movie already exists in that city.
+    """
+    try:
+        c = conn.cursor()
+        # Check if movie already exists in this city
+        c.execute(
+            "SELECT id FROM movies WHERE title = ? AND language = ?",
+            (movie, city)
+        )
+        if c.fetchone():
+            return False
+        
+        # Insert new movie (using language field as city for simplicity)
+        c.execute(
+            "INSERT INTO movies (title, language, format, duration) VALUES (?, ?, ?, ?)",
+            (movie, city, "2D", seats)  # storing seats in duration field temporarily
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DB ERROR] Failed to add movie: {e}")
+        return False
+
+
+def get_all_movies(conn):
+    """
+    Retrieve all movies with their available seat counts.
+    Returns list of dicts: [{"movie": ..., "city": ..., "seats": ...}, ...]
+    """
+    c = conn.cursor()
+    c.execute("SELECT title, language, duration FROM movies")
+    rows = c.fetchall()
+    
+    movies = []
+    for row in rows:
+        movies.append({
+            "movie": row[0],
+            "city": row[1],
+            "seats": row[2]  # duration field used as seats
+        })
+    return movies
+
+
+def update_movie_seats(conn, movie: str, city: str, seats_to_remove: int):
+    """
+    Decrement available seats when booking tickets.
+    Returns True on success, False if insufficient seats or movie not found.
+    """
+    try:
+        c = conn.cursor()
+        # Get current seat count
+        c.execute(
+            "SELECT id, duration FROM movies WHERE title = ? AND language = ?",
+            (movie, city)
+        )
+        result = c.fetchone()
+        
+        if not result:
+            return False
+        
+        movie_id, current_seats = result
+        
+        if current_seats < seats_to_remove:
+            return False  # Not enough seats
+        
+        # Update seat count
+        new_seats = current_seats - seats_to_remove
+        c.execute(
+            "UPDATE movies SET duration = ? WHERE id = ?",
+            (new_seats, movie_id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DB ERROR] Failed to update seats: {e}")
+        return False
+
+
 # ---------------- LOCAL TESTING ----------------
 if __name__ == "__main__":
     db = create_in_memory_db()

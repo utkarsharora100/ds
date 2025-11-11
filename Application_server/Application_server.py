@@ -1,22 +1,31 @@
 import uuid
 import time
 import os
+import sys
 from typing import Dict, Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
+# Import storage module
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from llm import storage
+
 # ---------------------- APPLICATION SERVER ----------------------
 class ApplicationServer:
     def __init__(self):
+        # Initialize database connection
+        self.db = storage.create_in_memory_db()
+        print("[SERVER] ✅ Database initialized with sample data")
+        
+        # Keep minimal in-memory storage for bookings, documents, messages
         self.users: Dict[str, str] = {
             "admin": "123",     # default admin
             "utkarsh": "password123"
         }
         self.sessions: Dict[str, str] = {}  # token -> username
         self.store = {
-            "movies": [],
             "bookings": [],
             "documents": [],
             "messages": [],
@@ -28,6 +37,10 @@ class ApplicationServer:
         if username in self.users:
             return {"status": "failure", "message": "User already exists"}
         self.users[username] = password
+        
+        # Also create in DB
+        storage.create_user(self.db, username, password)
+        
         print(f"[SERVER] New user created → {username}")
         return {"status": "success", "message": "User created"}
 
@@ -43,6 +56,18 @@ class ApplicationServer:
     def getResponse(self, token: str, data_type: str) -> Dict[str, Any]:
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
+        
+        # If requesting movies, fetch from database
+        if data_type == "movies":
+            movies = storage.get_all_movies(self.db)
+            # Format to match existing API response structure
+            formatted_movies = [
+                {"id": idx + 1, "data": movie} 
+                for idx, movie in enumerate(movies)
+            ]
+            return {"status": "success", "data": formatted_movies}
+        
+        # For other data types, use in-memory store
         if data_type not in self.store:
             return {"status": "failure", "message": "Invalid data type"}
         return {"status": "success", "data": self.store[data_type]}
@@ -59,6 +84,17 @@ class ApplicationServer:
             movie = payload["data"].get("movie")
             city = payload["data"].get("city")
             seats = payload["data"].get("seats", 1)
+            
+            # Try to decrement seats in database
+            success = storage.update_movie_seats(self.db, movie, city, seats)
+            
+            if not success:
+                return {
+                    "status": "failure", 
+                    "message": "Insufficient seats or movie not found"
+                }
+            
+            # Create booking record
             booking_id = str(uuid.uuid4())
             entry = {
                 "id": booking_id,
@@ -77,15 +113,20 @@ class ApplicationServer:
         return {"status": "failure", "message": "Unknown request type"}
 
     # ---------------------- ADMIN ----------------------
-    def add_movie(self, token: str, movie: str, city: str):
+    def add_movie(self, token: str, movie: str, city: str, seats: int = 50):
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
-        entry = {
-            "id": len(self.store["movies"]) + 1,
-            "data": {"movie": movie, "city": city},
-        }
-        self.store["movies"].append(entry)
-        print(f"[SERVER] 🍿 Movie added → {movie} ({city})")
+        
+        # Add movie to database with seat count
+        success = storage.add_movie_to_db(self.db, movie, city, seats)
+        
+        if not success:
+            return {
+                "status": "failure", 
+                "message": "Movie already exists in this city"
+            }
+        
+        print(f"[SERVER] 🍿 Movie added → {movie} ({city}) with {seats} seats")
         return {"status": "success"}
 
 
@@ -136,7 +177,8 @@ async def add_movie(req: Request):
     return JSONResponse(server.add_movie(
         token=data["token"],
         movie=data["movie"],
-        city=data["city"]
+        city=data["city"],
+        seats=data.get("seats", 50)  # Default to 50 seats if not provided
     ))
 
 # ---------------------- RUN SERVER ----------------------

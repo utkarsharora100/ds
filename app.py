@@ -173,17 +173,29 @@ class App(ctk.CTk):
         add_frame = ctk.CTkFrame(self)
         add_frame.pack(pady=10)
 
-        movie_entry = ctk.CTkEntry(add_frame, placeholder_text="Movie Name", width=250)
-        movie_entry.grid(row=0, column=0, padx=10)
+        movie_entry = ctk.CTkEntry(add_frame, placeholder_text="Movie Name", width=200)
+        movie_entry.grid(row=0, column=0, padx=5)
+        
+        city_entry = ctk.CTkEntry(add_frame, placeholder_text="City", width=150)
+        city_entry.grid(row=0, column=1, padx=5)
+        
+        seats_entry = ctk.CTkEntry(add_frame, placeholder_text="Seats", width=100)
+        seats_entry.insert(0, "50")  # Default value
+        seats_entry.grid(row=0, column=2, padx=5)
 
         add_btn = ctk.CTkButton(add_frame, text="Add Movie",
-                                command=lambda: self.add_movie(movie_entry.get()))
-        add_btn.grid(row=0, column=1)
+                                command=lambda: self.add_movie(movie_entry.get(), city_entry.get(), seats_entry.get()))
+        add_btn.grid(row=0, column=3, padx=5)
 
         # ---------------- MOVIE TABLE ----------------
-        self.movie_table = ttk.Treeview(self, columns=("movie"), show="headings", height=6)
-        self.movie_table.heading("movie", text="Movies Available")
+        self.movie_table = ttk.Treeview(self, columns=("movie", "city", "seats"), show="headings", height=6)
+        self.movie_table.heading("movie", text="Movie")
+        self.movie_table.heading("city", text="City")
+        self.movie_table.heading("seats", text="Available Seats")
         self.movie_table.pack(pady=10)
+        
+        # Refresh movies on load
+        self.refresh_movies_admin()
 
         # ---------------- SIMULATE CLIENT BOOKINGS ----------------
         ctk.CTkButton(self, text="Simulate Multiple Clients (5 users booking)",
@@ -198,12 +210,59 @@ class App(ctk.CTk):
 
         ctk.CTkButton(self, text="Logout", command=self.load_login).pack(pady=20)
 
-    def add_movie(self, movie_name):
-        if movie_name.strip() == "":
+    def add_movie(self, movie_name, city, seats):
+        if movie_name.strip() == "" or city.strip() == "":
             return
-
-        self.movies.append(movie_name)
-        self.movie_table.insert("", "end", values=(movie_name,))
+        
+        try:
+            seats_count = int(seats)
+        except ValueError:
+            seats_count = 50  # Default if invalid
+        
+        # Send to server
+        resp = requests.post(
+            "http://127.0.0.1:9000/add_movie",
+            json={
+                "token": self.client.token,
+                "movie": movie_name,
+                "city": city,
+                "seats": seats_count
+            },
+            timeout=5
+        ).json()
+        
+        if resp.get("status") == "success":
+            print(f"[CLIENT] Movie added: {movie_name} ({city}) - {seats_count} seats")
+            self.refresh_movies_admin()
+        else:
+            print(f"[CLIENT] Failed to add movie: {resp.get('message')}")
+    
+    def refresh_movies_admin(self):
+        """Fetch and display movies from the server for admin view"""
+        for item in self.movie_table.get_children():
+            self.movie_table.delete(item)
+        
+        try:
+            resp = requests.get(
+                "http://127.0.0.1:9000/data/movies",
+                params={"token": self.client.token},
+                timeout=5
+            ).json()
+            
+            if resp.get("status") == "success":
+                movies_data = resp.get("data", [])
+                for movie_item in movies_data:
+                    movie_info = movie_item.get("data", {})
+                    self.movie_table.insert(
+                        "", "end",
+                        values=(
+                            movie_info.get("movie", "N/A"),
+                            movie_info.get("city", "N/A"),
+                            movie_info.get("seats", "N/A")
+                        )
+                    )
+        except Exception as e:
+            print(f"[CLIENT] Error refreshing movies: {e}")
 
     # ----------------------------------------------------------------------------
     # CLIENT SIMULATION
