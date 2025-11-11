@@ -27,18 +27,15 @@ check_service() {
     fi
 }
 
-# Check if Docker is running
-if ! docker info > /dev/null 2>&1; then
-    echo -e "${RED}❌ Docker is not running${NC}"
-    exit 1
-fi
-
-echo "Checking Docker services..."
+# Check if services are accessible (skip Docker daemon check)
+echo "Checking service health..."
 echo ""
 
-# Check containers are running
-if ! docker-compose ps | grep -q "Up"; then
-    echo -e "${RED}❌ No services running. Start with: docker-compose up -d${NC}"
+# Try to check if at least one service responds
+if ! curl -s -f "http://localhost:9000/health" > /dev/null 2>&1 && \
+   ! curl -s -f "http://localhost:50051/status" > /dev/null 2>&1; then
+    echo -e "${RED}❌ Services not accessible. Check if containers are running:${NC}"
+    echo "   sudo docker compose ps"
     exit 1
 fi
 
