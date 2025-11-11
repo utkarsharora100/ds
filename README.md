@@ -66,10 +66,65 @@ curl -X POST http://localhost:8500/ask \
   -d '{"question":"How do I book a ticket?"}'
 ```
 
+### Test Client View (GUI or CLI)
+```bash
+# CLI Demo (no GUI needed)
+./demo_client_view.sh
+
+# GUI Application (requires display)
+pip install customtkinter requests
+export DISPLAY=:0
+python app.py
+```
+
 ### View Logs
 ```bash
 docker compose logs -f
 ```
+
+## 🎨 Client View Features
+
+The enhanced client view provides a complete user interface for movie booking:
+
+**Features:**
+- ✅ User registration and authentication
+- ✅ Dual-panel dashboard (movies & bookings)
+- ✅ Real-time movie browsing with city and seat info
+- ✅ Interactive ticket booking with validation
+- ✅ Personal booking history
+- ✅ Manual refresh from server
+- ✅ Token-based security
+
+**Quick Test:**
+```bash
+# Register a user
+curl -X POST http://localhost:9000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"john","password":"pass123"}'
+
+# Login and get token
+TOKEN=$(curl -s -X POST http://localhost:9000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"john","password":"pass123"}' | \
+  grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+# View movies
+curl "http://localhost:9000/data/movies?token=$TOKEN"
+
+# Book a ticket
+curl -X POST http://localhost:9000/business \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"requestId\":\"booking-$(date +%s)\",
+    \"payload\":{
+      \"type\":\"book_seat\",
+      \"data\":{\"movie\":\"Inception\",\"city\":\"Delhi\",\"seats\":2}
+    },
+    \"context\":{\"token\":\"$TOKEN\"}
+  }"
+```
+
+See [CLIENT_VIEW.md](docs/CLIENT_VIEW.md) for complete documentation.
 
 ## 📚 Documentation
 
@@ -125,29 +180,56 @@ ds/
 
 ### Application Server (`:9000`)
 
-| Method | Endpoint         | Description            |
-|--------|------------------|------------------------|
-| GET    | `/health`        | Health check           |
-| POST   | `/register`      | Register new user      |
-| POST   | `/login`         | User login             |
-| GET    | `/data/{type}`   | Get movies/bookings    |
-| POST   | `/business`      | Book tickets           |
-| POST   | `/add_movie`     | Add movie (admin only) |
+| Method | Endpoint         | Description            | Auth Required |
+|--------|------------------|------------------------|---------------|
+| GET    | `/health`        | Health check           | No            |
+| POST   | `/register`      | Register new user      | No            |
+| POST   | `/login`         | User login             | No            |
+| GET    | `/data/{type}`   | Get movies/bookings    | Yes (token)   |
+| POST   | `/business`      | Book tickets           | Yes (token)   |
+| POST   | `/add_movie`     | Add movie (admin only) | Yes (admin)   |
+
+**Example - Book a Ticket:**
+```bash
+curl -X POST http://localhost:9000/business \
+  -H "Content-Type: application/json" \
+  -d '{
+    "requestId":"booking-123",
+    "payload":{
+      "type":"book_seat",
+      "data":{"movie":"Inception","city":"Delhi","seats":2}
+    },
+    "context":{"token":"your-auth-token"}
+  }'
+```
 
 ### Raft Nodes (`:50051-50053`)
 
-| Method | Endpoint             | Description                     |
-|--------|----------------------|---------------------------------|
-| GET    | `/status`            | Node status & leader info       |
-| POST   | `/trigger-election`  | Trigger leader election         |
+| Method | Endpoint             | Description                     | Auth Required |
+|--------|----------------------|---------------------------------|---------------|
+| GET    | `/status`            | Node status & leader info       | No            |
+| POST   | `/trigger-election`  | Trigger leader election         | No            |
+
+**Example - Check Cluster Status:**
+```bash
+curl http://localhost:50051/status
+# Response: {"node_id":"node1","state":"leader","term":2,...}
+```
 
 ### LLM Server (`:8500`)
 
-| Method | Endpoint   | Description            |
-|--------|------------|------------------------|
-| GET    | `/health`  | Health & model status  |
-| POST   | `/ask`     | Quick FAQ question     |
-| POST   | `/chat`    | Conversational AI      |
+| Method | Endpoint   | Description            | Auth Required |
+|--------|------------|------------------------|---------------|
+| GET    | `/health`  | Health & model status  | No            |
+| POST   | `/ask`     | Quick FAQ question     | No            |
+| POST   | `/chat`    | Conversational AI      | No            |
+
+**Example - Ask FAQ:**
+```bash
+curl -X POST http://localhost:8500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How do I book a ticket?"}'
+```
 
 ## ⚙️ Configuration
 

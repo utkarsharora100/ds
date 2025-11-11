@@ -105,14 +105,104 @@ curl -X POST http://localhost:9000/register \
 curl -X POST http://localhost:9000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "123"}'
+
+# Save token for later use
+TOKEN=$(curl -s -X POST http://localhost:9000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "123"}' | \
+  grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 ```
 
 ### Movie Management
 ```bash
-# Add movie (replace TOKEN with actual token from login)
+# Add movie (admin only)
 curl -X POST http://localhost:9000/add_movie \
   -H "Content-Type: application/json" \
-  -d '{"token": "TOKEN", "movie": "Inception", "city": "NYC"}'
+  -d "{\"token\": \"$TOKEN\", \"movie\": \"Inception\", \"city\": \"Delhi\"}"
+
+# Get all movies
+curl "http://localhost:9000/data/movies?token=$TOKEN"
+
+# Get bookings
+curl "http://localhost:9000/data/bookings?token=$TOKEN"
+```
+
+### Booking Tickets
+```bash
+# Book a ticket
+curl -X POST http://localhost:9000/business \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"requestId\":\"booking-$(date +%s)\",
+    \"payload\":{
+      \"type\":\"book_seat\",
+      \"data\":{
+        \"movie\":\"Inception\",
+        \"city\":\"Delhi\",
+        \"seats\":2
+      }
+    },
+    \"context\":{\"token\":\"$TOKEN\"}
+  }"
+```
+
+---
+
+## Client View Commands
+
+### GUI Application
+```bash
+# Install dependencies
+pip install customtkinter requests
+
+# Run GUI (requires display server)
+export DISPLAY=:0
+python app.py
+
+# Or use venv
+source venv/bin/activate
+python app.py
+```
+
+### CLI Demo
+```bash
+# Run automated demo
+./demo_client_view.sh
+
+# Make executable if needed
+chmod +x demo_client_view.sh
+```
+
+### Complete Test Flow
+```bash
+# 1. Register
+curl -X POST http://localhost:9000/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test123"}'
+
+# 2. Login
+TOKEN=$(curl -s -X POST http://localhost:9000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"test123"}' | \
+  grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+
+# 3. View movies
+curl "http://localhost:9000/data/movies?token=$TOKEN"
+
+# 4. Book ticket
+curl -X POST http://localhost:9000/business \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"requestId\":\"test-$(date +%s)\",
+    \"payload\":{
+      \"type\":\"book_seat\",
+      \"data\":{\"movie\":\"Inception\",\"city\":\"Delhi\",\"seats\":1}
+    },
+    \"context\":{\"token\":\"$TOKEN\"}
+  }"
+
+# 5. Check bookings
+curl "http://localhost:9000/data/bookings?token=$TOKEN"
 ```
 
 ---
@@ -189,6 +279,34 @@ env | grep LLM
 | Raft Node 2 | 50052 | http://localhost:50052 |
 | Raft Node 3 | 50053 | http://localhost:50053 |
 | LLM Server | 8500 | http://localhost:8500 |
+
+---
+
+## API Endpoints Quick Reference
+
+### Application Server (Port 9000)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/health` | GET | No | Server health check |
+| `/register` | POST | No | Create new user |
+| `/login` | POST | No | User authentication |
+| `/data/movies` | GET | Yes | List all movies |
+| `/data/bookings` | GET | Yes | User's bookings |
+| `/business` | POST | Yes | Book tickets |
+| `/add_movie` | POST | Admin | Add new movie |
+
+### Raft Nodes (Ports 50051-50053)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/status` | GET | No | Node & cluster status |
+| `/trigger-election` | POST | No | Manual election trigger |
+
+### LLM Server (Port 8500)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/health` | GET | No | LLM server & model status |
+| `/ask` | POST | No | FAQ-style questions |
+| `/chat` | POST | No | Conversational AI |
 
 ---
 

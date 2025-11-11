@@ -75,16 +75,327 @@ The enhanced client view provides a comprehensive user interface for customers t
         └────────────────────────────────┘
 ```
 
-## API Endpoints Used
+## API Endpoints Documentation
 
-| Endpoint | Method | Purpose | Request Body | Response |
-|----------|--------|---------|--------------|----------|
-| `/register` | POST | Create new user | `{"username":"str", "password":"str"}` | `{"status":"success", "message":"..."}` |
-| `/login` | POST | Authenticate user | `{"username":"str", "password":"str"}` | `{"status":"success", "token":"uuid", "user":"str"}` |
-| `/data/movies` | GET | List all movies | Query: `?token=<token>` | `{"status":"success", "data":[...]}` |
-| `/data/bookings` | GET | User's bookings | Query: `?token=<token>` | `{"status":"success", "data":[...]}` |
-| `/business` | POST | Book tickets | `{"requestId":"uuid", "payload":{...}, "context":{"token":"str"}}` | `{"status":"success", "booking_id":"uuid"}` |
-| `/add_movie` | POST | Add movie (admin) | `{"token":"str", "movie":"str", "city":"str"}` | `{"status":"success"}` |
+### Application Server Endpoints (Port 9000)
+
+#### 1. Health Check
+**Endpoint:** `GET /health`  
+**Purpose:** Check if application server is running  
+**Authentication:** None required  
+**Request:** None  
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "application-server"
+}
+```
+
+#### 2. Register User
+**Endpoint:** `POST /register`  
+**Purpose:** Create a new user account  
+**Authentication:** None required  
+**Request Body:**
+```json
+{
+  "username": "string",
+  "password": "string"
+}
+```
+**Success Response (200):**
+```json
+{
+  "status": "success",
+  "message": "User created"
+}
+```
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "User already exists"
+}
+```
+
+#### 3. Login
+**Endpoint:** `POST /login`  
+**Purpose:** Authenticate user and get access token  
+**Authentication:** None required  
+**Request Body:**
+```json
+{
+  "username": "string",
+  "password": "string"
+}
+```
+**Success Response (200):**
+```json
+{
+  "status": "success",
+  "token": "uuid-string",
+  "user": "username"
+}
+```
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "Invalid credentials"
+}
+```
+
+#### 4. Get Data (Movies/Bookings)
+**Endpoint:** `GET /data/{data_type}`  
+**Purpose:** Retrieve movies or bookings list  
+**Authentication:** Required (token)  
+**URL Parameters:**
+- `data_type`: `movies` | `bookings` | `documents` | `messages`
+
+**Query Parameters:**
+- `token`: Authentication token from login
+
+**Request Example:**
+```bash
+GET /data/movies?token=your-token-here
+```
+
+**Success Response - Movies (200):**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": 1,
+      "data": {
+        "movie": "Inception",
+        "city": "Delhi"
+      }
+    },
+    {
+      "id": 2,
+      "data": {
+        "movie": "The Matrix",
+        "city": "Mumbai"
+      }
+    }
+  ]
+}
+```
+
+**Success Response - Bookings (200):**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "booking-uuid",
+      "data": {
+        "user": "username",
+        "movie": "Inception",
+        "city": "Delhi",
+        "seats": 2,
+        "timestamp": 1731234567.89
+      }
+    }
+  ]
+}
+```
+
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "Unauthorized"
+}
+```
+or
+```json
+{
+  "status": "failure",
+  "message": "Invalid data type"
+}
+```
+
+#### 5. Book Tickets
+**Endpoint:** `POST /business`  
+**Purpose:** Book movie tickets  
+**Authentication:** Required (token in context)  
+**Request Body:**
+```json
+{
+  "requestId": "unique-request-id",
+  "payload": {
+    "type": "book_seat",
+    "data": {
+      "movie": "Movie Name",
+      "city": "City Name",
+      "seats": 2
+    }
+  },
+  "context": {
+    "token": "your-auth-token"
+  }
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "success",
+  "booking_id": "uuid-string"
+}
+```
+
+**Error Responses (200):**
+```json
+{
+  "status": "failure",
+  "message": "Unauthorized"
+}
+```
+or
+```json
+{
+  "status": "failure",
+  "message": "Unknown request type"
+}
+```
+
+#### 6. Add Movie (Admin Only)
+**Endpoint:** `POST /add_movie`  
+**Purpose:** Add a new movie to the system  
+**Authentication:** Required (admin token)  
+**Request Body:**
+```json
+{
+  "token": "admin-auth-token",
+  "movie": "Movie Name",
+  "city": "City Name"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "success"
+}
+```
+
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "Unauthorized"
+}
+```
+
+### Raft Node Endpoints (Ports 50051-50053)
+
+#### 1. Node Status
+**Endpoint:** `GET /status`  
+**Purpose:** Get Raft node state and cluster information  
+**Authentication:** None required  
+**Request:** None  
+**Response:**
+```json
+{
+  "node_id": "node1",
+  "state": "leader",
+  "term": 2,
+  "leader_id": "node1",
+  "peers": ["node2", "node3"]
+}
+```
+
+**States:**
+- `follower`: Node is following a leader
+- `candidate`: Node is participating in election
+- `leader`: Node is the cluster leader
+
+#### 2. Trigger Election
+**Endpoint:** `POST /trigger-election`  
+**Purpose:** Manually trigger a leader election  
+**Authentication:** None required  
+**Request:** None  
+**Response:**
+```json
+{
+  "message": "Election manually triggered."
+}
+```
+
+### LLM Server Endpoints (Port 8500)
+
+#### 1. Health Check
+**Endpoint:** `GET /health`  
+**Purpose:** Check LLM server status and model info  
+**Authentication:** None required  
+**Request:** None  
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "llm-server",
+  "model": "Qwen/Qwen2.5-0.5B",
+  "model_loaded": true
+}
+```
+
+#### 2. Chat
+**Endpoint:** `POST /chat`  
+**Purpose:** Conversational AI interaction  
+**Authentication:** None required  
+**Request Body:**
+```json
+{
+  "message": "Tell me about your booking system",
+  "history": []
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Our booking system allows you to...",
+  "confidence": 0.85
+}
+```
+
+#### 3. Ask FAQ
+**Endpoint:** `POST /ask`  
+**Purpose:** Quick FAQ-style questions  
+**Authentication:** None required  
+**Request Body:**
+```json
+{
+  "question": "How do I book a ticket?"
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "To book a ticket, first login to your account...",
+  "confidence": 0.92
+}
+```
+
+### Summary Table
+
+| Endpoint | Method | Port | Auth Required | Purpose |
+|----------|--------|------|---------------|---------|
+| `/health` | GET | 9000 | No | App server health |
+| `/register` | POST | 9000 | No | Create user account |
+| `/login` | POST | 9000 | No | User authentication |
+| `/data/{type}` | GET | 9000 | Yes (token) | Get movies/bookings |
+| `/business` | POST | 9000 | Yes (token) | Book tickets |
+| `/add_movie` | POST | 9000 | Yes (admin) | Add new movie |
+| `/status` | GET | 50051-50053 | No | Raft node status |
+| `/trigger-election` | POST | 50051-50053 | No | Force election |
+| `/health` | GET | 8500 | No | LLM server health |
+| `/chat` | POST | 8500 | No | AI conversation |
+| `/ask` | POST | 8500 | No | AI FAQ answers |
 
 ## Testing Guide
 
