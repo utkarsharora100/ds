@@ -68,7 +68,7 @@ models/
 
 # Raft state (if persisted)
 raft_state/
-*.raft
+# *.raft
 
 # Temporary files
 *.tmp

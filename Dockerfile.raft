@@ -1,0 +1,24 @@
+# Dockerfile for Raft Nodes
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY main.py .
+COPY raft/ ./raft/
+COPY proto/ ./proto/
+
+# Raft nodes will use ports 50051-50053
+EXPOSE 50051 50052 50053
+
+# Entry point will be overridden in docker-compose with node ID
+ENTRYPOINT ["python", "main.py"]
