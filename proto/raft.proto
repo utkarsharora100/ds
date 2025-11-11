@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package raft;
+
+// ------------------------------------------------------------
+// LOG ENTRY (now structured, supports booking, seat update, etc.)
+// ------------------------------------------------------------
+message LogEntry {
+  int32 index = 1;
+  int32 term = 2;
+  string key = 3;        // e.g., "booking"
+  string json_value = 4; // serialized payload (booking data as JSON)
+}
+
+// ------------------------------------------------------------
+// REQUEST VOTE
+// ------------------------------------------------------------
+message RequestVoteRequest {
+  int32 term = 1;
+  string candidate_id = 2;
+  int32 last_log_index = 3;
+  int32 last_log_term = 4;
+}
+
+message RequestVoteResponse {
+  int32 term = 1;
+  bool vote_granted = 2;
+}
+
+// ------------------------------------------------------------
+// APPEND ENTRIES (log replication + heartbeat)
+// ------------------------------------------------------------
+message AppendEntriesRequest {
+  int32 term = 1;
+  string leader_id = 2;
+
+  int32 prev_log_index = 3;
+  int32 prev_log_term = 4;
+
+  repeated LogEntry entries = 5; // ❗ structured entries
+  int32 leader_commit = 6;
+}
+
+message AppendEntriesResponse {
+  int32 term = 1;
+  bool success = 2;
+  int32 match_index = 3; // ❗ required by Raft to track replication
+}
+
+// ------------------------------------------------------------
+// RAFT SERVICE
+// ------------------------------------------------------------
+service RaftService {
+  rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+}
