@@ -78,6 +78,7 @@ docker compose logs -f
 - [LLM_TESTING.md](docs/LLM_TESTING.md): AI assistant endpoints and examples.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md): System and Docker architecture.
 - [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md): Command and port cheat sheet.
+- [CLIENT_VIEW.md](docs/CLIENT_VIEW.md): Enhanced client view documentation and testing guide.
 
 ## 🩺 Troubleshooting
 
