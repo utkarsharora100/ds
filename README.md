@@ -1,124 +1,92 @@
-# 🎬 Distributed Movie Booking System# Distributed Movie Booking System
+# 🎬 Distributed Movie Booking System
 
+A distributed movie ticket booking system featuring a FastAPI backend, a 3-node Raft consensus cluster, and an AI assistant powered by Qwen2.5-0.5B. The entire stack runs with a single Docker command.
 
+## � Overview
 
-A production-ready distributed movie ticket booking system with **Raft consensus**, **FastAPI backend**, and **AI-powered support** using Qwen2.5-0.5B.A distributed movie ticket booking system with **Raft consensus**, **FastAPI backend**, **Qwen2.5 AI assistant**, and complete **Docker orchestration**.
+- Raft consensus (3 nodes) with automatic leader election and status endpoints
+- FastAPI application server (auth, movies, bookings)
+- Qwen2.5-0.5B LLM server for FAQ/chat assistance
+- Docker-first workflow with health checks and logs
 
+## 🧩 Services and Ports
 
+- app-server: http://localhost:9000
+- raft-node1: http://localhost:50051
+- raft-node2: http://localhost:50052
+- raft-node3: http://localhost:50053
+- llm-server: http://localhost:8500
 
-## ✨ Features## 🎯 Overview
+## 🧰 Prerequisites
 
+- Docker installed and running
+- Compose V2 preferred: use "docker compose ..." (fallback: "docker-compose ...")
+- 6 GB RAM recommended (LLM), ~10 GB free disk
 
+Need Docker on Arch Linux? See INSTALL_DOCKER.md.
 
-- **🔄 Distributed Consensus**: Raft protocol with automatic leader electionProduction-ready distributed system demonstrating:
+## 🚀 Quick Start
 
-- **🤖 AI Assistant**: Qwen2.5-0.5B model for booking support and FAQs
+```bash
+# Start all services (Compose V2)
 
-- **🚀 Microservices**: FastAPI application server with RESTful APIs- **Raft Consensus Protocol**: 3-node cluster with automatic leader election and log replication
 
-- **💾 Data Persistence**: SQLite with user sessions and booking management- **FastAPI Application Server**: RESTful API for user authentication, movie management, and bookings
+# or (Compose V1)
 
-- **🐳 Docker Ready**: One command deployment with docker-compose- **AI Assistant**: Qwen2.5-0.5B (500M parameters) for conversational support and FAQs
+```
 
-- **📊 Health Monitoring**: Built-in health checks for all services- **Docker Orchestration**: Complete containerized deployment with one command
+Wait 30–60 seconds on first run (LLM model download). Then verify:
 
-- **Health Monitoring**: Built-in health checks and status endpoints for all services
+```bash
+./check_health.sh
 
----- **Distributed Architecture**: Microservices pattern with inter-service communication
+# or individually
+curl http://localhost:9000/health
+curl http://localhost:8500/health
+curl http://localhost:50051/status
+```
 
+Default test users:
+- admin / 123
+- utkarsh / password123
 
+## 🧪 Try It
 
-## 🚀 Quick Start (3 Steps)## 📁 Project Structure
+```bash
+# Login
+curl -X POST http://localhost:9000/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"123"}'
 
+# Ask the AI
+curl -X POST http://localhost:8500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How do I book a ticket?"}'
 
+# View logs (all services)
+docker compose logs -f
+```
 
-### Prerequisites```
+## 📚 Documentation
 
-- Docker & Docker Compose installedds/
+- QUICKSTART.md – 2-minute setup and verification
+- DOCKER.md – Complete Docker deployment guide
+- LLM_TESTING.md – LLM endpoints and examples
+- ARCHITECTURE.md – System and Docker architecture
+- QUICK_REFERENCE.md – Handy commands and ports
 
-- 6GB RAM minimum (for LLM server)├── 🐳 Docker Configuration
+## 🩺 Troubleshooting
 
-- 10GB free disk space│   ├── docker-compose.yml         # Service orchestration
+- "command not found: docker-compose" → Use "docker compose"
+- Ports in use → free 9000/8500/50051-50053 or change in docker-compose.yml
+- LLM slow on first call → model loads on first request; subsequent calls are faster
+- Low memory → start without LLM: `docker compose up -d app-server raft-node1 raft-node2 raft-node3`
 
-│   ├── Dockerfile.app             # Application server image
+## 📝 License and Authors
 
-### Start the System│   ├── Dockerfile.raft            # Raft nodes image
+Educational project for distributed systems learning.
 
-│   ├── Dockerfile.llm             # LLM server image
-
-```bash│   └── .dockerignore              # Build optimization
-
-# 1. Clone or navigate to the project│
-
-cd /home/aniket/study/ds├── 🚀 Application Code
-
-│   ├── Application_server/
-
-# 2. Start all services│   │   └── Application_server.py  # FastAPI backend (port 9000)
-
-docker-compose up -d│   ├── raft/
-
-│   │   ├── raft_node.py           # Raft implementation
-
-# 3. Wait 30-60 seconds, then check health│   │   └── raft_state.py          # State management
-
-curl http://localhost:9000/health│   ├── llm/
-
-curl http://localhost:8500/health│   │   ├── llm_server.py          # Qwen2.5 AI server (port 8500)
-
-```│   │   └── storage.py             # SQLite functions
-
-│   ├── proto/
-
-**That's it!** 🎉 All services are now running.│   │   ├── raft.proto             # gRPC definitions
-
-│   │   └── raft_pb2*.py           # Generated code
-
----│   └── main.py                    # Raft node launcher
-
-│
-
-## 📊 System Architecture├── 🧪 Testing & Scripts
-
-│   ├── test_llm.py                # LLM test suite
-
-```│   ├── check_health.sh            # Health check script
-
-┌─────────────────────────────────────────────────┐│   └── client/client.py           # Load testing client
-
-│           Docker Network (movie-booking-net)     ││
-
-├─────────────────────────────────────────────────┤├── 📚 Documentation
-
-│                                                  ││   ├── README.md                  # This file
-
-│  ┌──────────────┐        ┌──────────────┐      ││   ├── QUICKSTART.md              # 2-minute setup
-
-│  │ App Server   │        │ LLM Server   │      ││   ├── DOCKER.md                  # Complete Docker guide
-
-│  │ Port: 9000   │        │ Port: 8500   │      ││   ├── LLM_TESTING.md             # AI assistant guide
-
-│  │ (FastAPI)    │        │ (Qwen2.5)    │      ││   ├── QUICK_REFERENCE.md         # Command cheat sheet
-
-│  └──────────────┘        └──────────────┘      ││   └── ARCHITECTURE.md            # System design
-
-│                                                  ││
-
-│  ┌────────┐  ┌────────┐  ┌────────┐           │└── ⚙️ Configuration
-
-│  │ Raft-1 │  │ Raft-2 │  │ Raft-3 │           │    ├── requirements.txt           # Python dependencies
-
-│  │ :50051 │  │ :50052 │  │ :50053 │           │    ├── .env                       # Environment variables
-
-│  └────────┘  └────────┘  └────────┘           │    └── .env.example               # Config template
-
-│                                                  │```
-
-└─────────────────────────────────────────────────┘
-
-```## 🛠️ Prerequisites
-
-
+Authors: Aniket & Team – Repository: utkarsharora100/ds
 
 **Services:****Only Docker is required!**
 
