@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  # Application Server - FastAPI backend for movie bookings
+  app-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: movie-app-server
+    ports:
+      - "9000:9000"
+    environment:
+      - APP_HOST=0.0.0.0
+      - APP_PORT=9000
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Raft Node 1 - Consensus layer
+  raft-node1:
+    build:
+      context: .
+      dockerfile: Dockerfile.raft
+    container_name: raft-node1
+    command: ["node1"]
+    ports:
+      - "50051:50051"
+    environment:
+      - DOCKER_ENV=true
+    networks:
+      - movie-booking-network
+    depends_on:
+      - app-server
+    restart: unless-stopped
+
+  # Raft Node 2 - Consensus layer
+  raft-node2:
+    build:
+      context: .
+      dockerfile: Dockerfile.raft
+    container_name: raft-node2
+    command: ["node2"]
+    ports:
+      - "50052:50052"
+    environment:
+      - DOCKER_ENV=true
+    networks:
+      - movie-booking-network
+    depends_on:
+      - app-server
+    restart: unless-stopped
+
+  # Raft Node 3 - Consensus layer
+  raft-node3:
+    build:
+      context: .
+      dockerfile: Dockerfile.raft
+    container_name: raft-node3
+    command: ["node3"]
+    ports:
+      - "50053:50053"
+    environment:
+      - DOCKER_ENV=true
+    networks:
+      - movie-booking-network
+    depends_on:
+      - app-server
+    restart: unless-stopped
+
+  # LLM Server - FAQ Assistant (optional, can be disabled)
+  llm-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.llm
+    container_name: movie-llm-server
+    ports:
+      - "8500:8500"
+    environment:
+      - LLM_MODEL=Qwen/Qwen2.5-0.5B
+      - LLM_MAX_NEW_TOKENS=512
+      - LLM_TEMPERATURE=0.7
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    # Uncomment below to limit memory usage for LLM
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+
+networks:
+  movie-booking-network:
+    driver: bridge
+    name: movie-booking-net
+
+# Optional: Add volumes for persistent storage
+# volumes:
+#   movie-db-data:
+#   raft-logs:

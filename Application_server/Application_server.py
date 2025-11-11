@@ -1,8 +1,10 @@
 import uuid
 import time
+import os
 from typing import Dict, Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 # ---------------------- APPLICATION SERVER ----------------------
@@ -88,8 +90,22 @@ class ApplicationServer:
 
 
 # ---------------------- FASTAPI WRAPPER ----------------------
-app = FastAPI()
+app = FastAPI(title="Movie Booking Application Server")
 server = ApplicationServer()
+
+# Add CORS middleware for Docker environment
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins in development
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "application-server"}
 
 @app.post("/register")
 async def register(req: Request):
@@ -125,4 +141,7 @@ async def add_movie(req: Request):
 
 # ---------------------- RUN SERVER ----------------------
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=9000)
+    # Use 0.0.0.0 to allow external connections (required for Docker)
+    host = os.environ.get("APP_HOST", "0.0.0.0")
+    port = int(os.environ.get("APP_PORT", "9000"))
+    uvicorn.run(app, host=host, port=port)
