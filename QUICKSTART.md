@@ -1,89 +1,133 @@
 # 🚀 Quick Start Guide
 
-Get the system running in **under 5 minutes**!
+Get the system running in **under 2 minutes**!
 
-## Prerequisites Check
-
-```bash
-python --version  # Should be 3.8+
-pip --version     # Should be installed
-```
-
-## Installation (One Command)
+## Prerequisites
 
 ```bash
-pip install -r requirements.txt
+docker --version      # Should be 20.10+
+docker-compose --version  # Should be 2.0+
 ```
 
-⏳ **Wait time:** ~2-3 minutes depending on your internet speed
+Need Docker? [Install Docker](https://docs.docker.com/get-docker/)
 
 ---
 
-## Running the System
+## Start the System (One Command!)
 
-### 🎯 Method 1: Automated Script (Easiest)
-
-**Linux/Mac:**
 ```bash
-./start.sh
+docker-compose up -d
 ```
 
-**Windows:**
-```bash
-start.bat
-```
-
-Then choose option **1** (Full System)
+**That's it!** ✅
 
 ---
 
-### 🎯 Method 2: Manual (4 terminals)
+## What Just Happened?
 
-**Terminal 1 - Application Server:**
-```bash
-python Application_server/Application_server.py
-```
-
-**Terminal 2, 3, 4 - Raft Nodes:**
-```bash
-python main.py node1  # Terminal 2
-python main.py node2  # Terminal 3
-python main.py node3  # Terminal 4
-```
-
-**Terminal 5 - GUI:**
-```bash
-python app.py
-```
+The command started 5 services:
+- ✅ Application Server (port 9000)
+- ✅ Raft Node 1 (port 50051)
+- ✅ Raft Node 2 (port 50052)
+- ✅ Raft Node 3 (port 50053)
+- ✅ LLM Server with Qwen2.5 (port 8500)
 
 ---
 
-## Using the GUI
+## Wait 30-60 Seconds
 
-1. **Click the 3 "Start Node" buttons** → Wait for 🟢 indicators
-2. **Login:**
-   - Username: `admin`
-   - Password: `123`
-3. **Add movies** and **test the system**!
+The LLM model needs to load (~500MB download on first run).
+
+Check progress:
+```bash
+docker-compose logs -f llm-server
+```
+
+Look for: `✅ Model loaded successfully`
+
+Press `Ctrl+C` to exit logs.
 
 ---
 
-## Quick Tests
+## Verify Everything Works
 
-### Check Raft Status:
+### Quick Health Check
+
 ```bash
+./check_health.sh
+```
+
+Expected output:
+```
+✅ Application Server OK
+✅ Raft Node 1 OK
+✅ Raft Node 2 OK
+✅ Raft Node 3 OK
+✅ LLM Server OK
+✅ Leader elected: node2
+```
+
+### Manual Checks
+
+```bash
+# App Server
+curl http://localhost:9000/health
+
+# LLM Server
+curl http://localhost:8500/health
+
+# Raft Status
 curl http://localhost:50051/status
-curl http://localhost:50052/status
-curl http://localhost:50053/status
 ```
 
-One should show `"state": "leader"`
+---
 
-### Test Login:
+## Test the APIs
+
+### 1. Login
+
 ```bash
-curl -X POST http://127.0.0.1:9000/login \
+curl -X POST http://localhost:9000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "password": "123"}'
+```
+
+You should get a token back.
+
+### 2. Ask the AI
+
+```bash
+curl -X POST http://localhost:8500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How do I book a ticket?"}'
+```
+
+The AI will respond with booking instructions!
+
+### 3. Run Full Test Suite
+
+```bash
+python test_llm.py
+```
+
+---
+
+## View Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f app-server
+```
+
+---
+
+## Stop Everything
+
+```bash
+docker-compose down
 ```
 
 ---
@@ -91,43 +135,128 @@ curl -X POST http://127.0.0.1:9000/login \
 ## Troubleshooting
 
 ### "Port already in use"
+
 ```bash
-./start.sh  # Choose option 6 to stop all
-# OR manually:
-lsof -ti:9000,50051,50052,50053 | xargs kill -9
+# Find and kill the process
+lsof -ti:9000 | xargs kill -9
+
+# Or change port in docker-compose.yml
 ```
 
-### "Module not found"
+### "Out of memory" (LLM Server)
+
+Option 1: Increase Docker memory to 6GB+  
+Settings → Resources → Memory
+
+Option 2: Skip LLM server
 ```bash
-pip install -r requirements.txt
+docker-compose up -d app-server raft-node1 raft-node2 raft-node3
 ```
 
-### GUI won't open (Linux)
+### Services won't start
+
 ```bash
-sudo apt-get install python3-tk  # Ubuntu/Debian
+# Check Docker is running
+docker info
+
+# Clean restart
+docker-compose down -v
+docker-compose up -d
 ```
 
----
+### Model download is slow
 
-## What You Should See
+First run downloads ~500MB. Be patient!
 
-✅ Application Server running on port 9000  
-✅ Three Raft nodes on ports 50051-50053  
-✅ One node elected as LEADER  
-✅ GUI opens with login screen  
+Check progress:
+```bash
+docker-compose logs -f llm-server
+```
 
 ---
 
 ## Next Steps
 
-📖 Read the full [README.md](README.md) for detailed architecture and API documentation
+Now that everything is running:
 
-🧪 Explore the test files in `tests/` directory
-
-🎓 Learn about [Raft Consensus](https://raft.github.io/)
+1. **Read the docs**: [README.md](README.md) for full details
+2. **Test the API**: See [LLM_TESTING.md](LLM_TESTING.md)
+3. **Understand the system**: Read [ARCHITECTURE.md](ARCHITECTURE.md)
+4. **Docker deep dive**: Check [DOCKER.md](DOCKER.md)
 
 ---
 
-**Questions?** Check the Troubleshooting section in README.md
+## Common Commands
 
-**Ready to go!** 🎉
+```bash
+# Start
+docker-compose up -d
+
+# Stop
+docker-compose down
+
+# Restart
+docker-compose restart
+
+# View logs
+docker-compose logs -f
+
+# Check status
+docker-compose ps
+
+# Health check
+./check_health.sh
+```
+
+---
+
+## Default Credentials
+
+**Login to test:**
+- Username: `admin`
+- Password: `123`
+
+**Or:**
+- Username: `utkarsh`
+- Password: `password123`
+
+---
+
+## What's Running?
+
+| Service | Port | What it does |
+|---------|------|--------------|
+| app-server | 9000 | Booking API |
+| raft-node1 | 50051 | Consensus (1) |
+| raft-node2 | 50052 | Consensus (2) |
+| raft-node3 | 50053 | Consensus (3) |
+| llm-server | 8500 | AI Assistant |
+
+---
+
+## Performance
+
+**First start:** 2-3 minutes (model download)  
+**Subsequent starts:** 30-60 seconds  
+**LLM responses:** 2-5 seconds (CPU)
+
+---
+
+## Need Help?
+
+Check [README.md](README.md) for:
+- Complete API documentation
+- Troubleshooting guide
+- Advanced configuration
+- Development workflows
+
+---
+
+**🎉 You're ready!** The system is now running.
+
+Try this:
+```bash
+curl -X POST http://localhost:8500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is this system?"}'
+```

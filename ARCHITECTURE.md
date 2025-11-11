@@ -6,6 +6,52 @@ This document provides a detailed technical overview of the Distributed Movie Bo
 
 ## System Components
 
+### Docker Architecture (Deployed)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Docker Host (Your Machine)                  │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │              Docker Network: raft-network               │    │
+│  │              (Bridge Mode - 172.18.0.0/16)             │    │
+│  │                                                          │    │
+│  │  ┌──────────────┐       ┌──────────────┐              │    │
+│  │  │ app-server   │       │ llm-server   │              │    │
+│  │  │ Port: 9000   │       │ Port: 8500   │              │    │
+│  │  │ FastAPI      │◄─────►│ Qwen2.5-0.5B │              │    │
+│  │  └──────┬───────┘       └──────────────┘              │    │
+│  │         │                                               │    │
+│  │         │ HTTP/gRPC                                     │    │
+│  │         ▼                                               │    │
+│  │  ┌──────────────────────────────────────────────┐     │    │
+│  │  │        Raft Cluster (Consensus Layer)        │     │    │
+│  │  │                                               │     │    │
+│  │  │  ┌─────────┐  ┌─────────┐  ┌─────────┐     │     │    │
+│  │  │  │ raft-   │  │ raft-   │  │ raft-   │     │     │    │
+│  │  │  │ node1   │◄►│ node2   │◄►│ node3   │     │     │    │
+│  │  │  │ :50051  │  │ :50052  │  │ :50053  │     │     │    │
+│  │  │  └─────────┘  └─────────┘  └─────────┘     │     │    │
+│  │  │        gRPC Leader Election & Heartbeats    │     │    │
+│  │  └──────────────────────────────────────────────┘     │    │
+│  └────────────────────────────────────────────────────────┘    │
+│                                                                  │
+│  Exposed Ports:                                                 │
+│  • localhost:9000  → app-server                                │
+│  • localhost:8500  → llm-server                                │
+│  • localhost:50051-50053 → raft nodes                          │
+└─────────────────────────────────────────────────────────────────┘
+
+         ▲
+         │ HTTP/REST API Calls
+         │
+    ┌────┴─────┐
+    │  Client  │ (curl, browser, GUI)
+    └──────────┘
+```
+
+### Logical Component View
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                          CLIENT LAYER                            │
@@ -33,9 +79,10 @@ This document provides a detailed technical overview of the Distributed Movie Bo
 │  └────────────────────────┬───────────────────────────────┘   │
 │                           │                                    │
 │  ┌────────────────────────▼───────────────────────────────┐   │
-│  │          LLM Server (Optional)                         │   │
+│  │          LLM Server (AI Assistant)                     │   │
 │  │          Port: 8500                                    │   │
-│  │          Model: deepset/roberta-base-squad2           │   │
+│  │          Model: Qwen/Qwen2.5-0.5B                     │   │
+│  │          Capabilities: Chat, FAQ, Text Generation      │   │
 │  └────────────────────────────────────────────────────────┘   │
 └────────────────────────┬───────────────────────────────────────┘
                          │
@@ -177,38 +224,66 @@ service RaftService {
 
 ### 4. LLM Server (`llm/llm_server.py`)
 
-**Technology:** FastAPI + Hugging Face Transformers
+**Technology:** FastAPI + Hugging Face Transformers + PyTorch
 
 **Port:** 8500
 
-**Model:** `deepset/roberta-base-squad2` (BERT-based Q&A)
+**Model:** `Qwen/Qwen2.5-0.5B` (Alibaba's Qwen 2.5 - 0.5B parameters)
 
-**Functionality:**
-- Answer domain-specific FAQs
-- Extractive question answering
-- Context-based responses
+**Capabilities:**
+- Natural language understanding
+- Context-aware responses
+- Multi-turn conversations
+- FAQ answering
+- Text generation
 
 **Endpoints:**
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/` | Health check |
-| POST | `/ask` | Submit question, get answer |
+| GET | `/health` | Health check & model status |
+| POST | `/ask` | Single-turn FAQ (context + question) |
+| POST | `/chat` | Multi-turn conversation |
 
-**Response Format:**
+**FAQ Response Format:**
 ```json
 {
   "answer": "string",
-  "confidence": 0.0-1.0
+  "model": "Qwen/Qwen2.5-0.5B",
+  "timestamp": "ISO-8601"
 }
 ```
 
-**Context Domain:**
-- Movie booking process
-- Cancellation policies
-- Payment procedures
-- System architecture (Raft)
-- Support information
+**Chat Response Format:**
+```json
+{
+  "response": "string",
+  "model": "Qwen/Qwen2.5-0.5B",
+  "timestamp": "ISO-8601"
+}
+```
+
+**FAQ Context Domains:**
+- Movie booking workflows
+- Cancellation and refund policies
+- Payment methods
+- Raft consensus explanation
+- System architecture
+- Technical support
+
+**Configuration (.env):**
+```bash
+LLM_MODEL_NAME=Qwen/Qwen2.5-0.5B
+LLM_DEVICE=cpu  # or cuda for GPU
+TEMPERATURE=0.7
+MAX_LENGTH=512
+```
+
+**Performance:**
+- First request: ~10-15s (model loading)
+- Subsequent requests: ~2-5s (CPU inference)
+- Memory usage: ~2-3GB
+- GPU support: Yes (recommended for production)
 
 ---
 
@@ -498,10 +573,24 @@ GUI                     Raft Node
 - **Raft Cluster:** ~100 commits/s (dependent on network)
 - **Database:** Limited by SQLite (single writer)
 
-### Resource Usage
+### Resource Usage (Docker)
 
-- **Memory:** ~500MB (with LLM model loaded)
-- **CPU:** Low (~5% idle, ~30% under load)
+- **Memory:** 
+  - app-server: ~200MB
+  - llm-server: ~2-3GB (with model loaded)
+  - raft-node (each): ~100-150MB
+  - **Total:** ~4-5GB recommended
+
+- **CPU:** 
+  - Idle: ~5-10%
+  - Under load: ~30-50%
+  - LLM inference: 100% spike for 2-5s
+
+- **Disk:**
+  - Base images: ~2GB
+  - Model cache: ~500MB (HuggingFace cache)
+  - Logs: <100MB
+
 - **Network:** <1 Mbps for typical workloads
 
 ---
@@ -534,27 +623,52 @@ GUI                     Raft Node
 
 ## Deployment
 
-### Development
+### Docker (Recommended)
+
+**Quick Start:**
+```bash
+docker-compose up -d
+```
+
+**Architecture:**
+- 5 containers in `raft-network` bridge network
+- Service discovery via container names
+- Persistent logs in Docker volumes
+- Health checks for all services
+
+**Containers:**
+```yaml
+app-server:    # FastAPI application (port 9000)
+llm-server:    # Qwen LLM inference (port 8500)
+raft-node1:    # Consensus node 1 (port 50051)
+raft-node2:    # Consensus node 2 (port 50052)
+raft-node3:    # Consensus node 3 (port 50053)
+```
+
+**Environment Configuration:**
+```bash
+# .env file
+LLM_MODEL_NAME=Qwen/Qwen2.5-0.5B
+APP_HOST=0.0.0.0
+APP_PORT=9000
+NODE_HOST_PREFIX=raft-node
+```
+
+**Health Monitoring:**
+```bash
+./check_health.sh
+docker-compose ps
+docker-compose logs -f
+```
+
+### Development (Local)
 
 ```bash
-# All services on localhost
+# Manual start (not recommended)
 python app.py
 ```
 
-### Production (Recommended)
-
-```bash
-# Use Docker Compose
-docker-compose up -d
-
-# Or systemd services
-systemctl start movie-booking-app
-systemctl start movie-booking-raft@{1,2,3}
-```
-
-### Environment Variables
-
-See `.env.example` for configuration options
+**Note:** Docker deployment handles all service orchestration automatically.
 
 ---
 
