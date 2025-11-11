@@ -310,3 +310,114 @@ The enhanced client view is now fully functional with:
 - ✅ Error handling and validation
 
 All backend services are running and tested successfully! 🚀
+
+---
+
+## 🖥️ GUI Display Error Troubleshooting
+
+### Error: `_tkinter.TclError: no display name and no $DISPLAY environment variable`
+
+**Cause**: Trying to run GUI application (`app.py`) in a terminal-only (TTY) session without graphical environment.
+
+### **Solution 1: X11 Forwarding from Mac** ⭐ Recommended
+
+1. **Install XQuartz** on your Mac:
+   ```bash
+   brew install --cask xquartz
+   ```
+   ⚠️ **Important**: Log out and log back in to your Mac after installation
+
+2. **Update SSH config** on your Mac (`~/.ssh/config`):
+   ```ssh_config
+   Host archlinux
+     HostName 10.185.143.31
+     User aniket
+     PubkeyAuthentication no
+     PreferredAuthentications password
+     ForwardX11 yes
+     ForwardX11Trusted yes
+   ```
+
+3. **Reconnect with X11 forwarding**:
+   ```bash
+   # Exit current SSH session
+   exit
+   
+   # Reconnect (will automatically use X11 forwarding)
+   ssh archlinux
+   ```
+
+4. **Verify X11 is working**:
+   ```bash
+   echo $DISPLAY  # Should show: "localhost:10.0" or similar
+   xeyes          # Test X11 (optional - shows moving eyes)
+   ```
+
+5. **Run the GUI application**:
+   ```bash
+   cd /home/aniket/study/ds
+   ./venv/bin/python app.py
+   ```
+
+### **Solution 2: CLI Testing** (No GUI Required)
+
+Test all functionality without needing a graphical display:
+
+```bash
+cd /home/aniket/study/ds
+
+# Option A: Comprehensive automated test
+./venv/bin/python test_complete_system.py
+
+# Option B: GUI feature demonstration via CLI
+./demo_gui_features.sh
+
+# Option C: Client view demo
+./demo_client_view.sh
+```
+
+### **Solution 3: Physical Access**
+
+If you're at the Arch Linux machine with a monitor:
+- Press `Ctrl+Alt+F1` (or F2, F7) to switch to graphical desktop
+- Open terminal in desktop environment
+- Run: `cd /home/aniket/study/ds && ./venv/bin/python app.py`
+
+### **What the GUI Shows:**
+
+**Login Screen:**
+- Username and password input fields
+- Login/Register buttons
+
+**Admin Dashboard:**
+```
+[Movie Name] [City] [Seats] [Add Movie]
+┌────────────────────────────────────┐
+│ Movie      │ City    │ Seats       │
+├────────────────────────────────────┤
+│ Dune 2     │ NYC     │ 80          │
+│ Matrix     │ LA      │ 40          │
+└────────────────────────────────────┘
+```
+
+**Client Dashboard (Dual Panel):**
+```
+Available Movies          My Bookings
+┌──────────────────┐    ┌─────────────────┐
+│ Movie │City│Seat│    │ ID │Movie│Seats │
+├──────────────────┤    ├─────────────────┤
+│ Dune 2│NYC │ 80 │    │ d530│Dune │ 5   │
+└──────────────────┘    └─────────────────┘
+```
+
+### **Verification Tests:**
+
+All fixes are working (verified via CLI tests):
+- ✅ Database persistence (movies survive restarts)
+- ✅ Seat counts display correctly (not "N/A")
+- ✅ Admin can add movies with custom seat numbers
+- ✅ Bookings decrement available seats (100 → 85 → 80)
+- ✅ Insufficient seats validation works
+- ✅ Raft cluster healthy (leader election functional)
+
+**The error is just about the display environment - all code is working correctly!**

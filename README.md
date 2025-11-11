@@ -27,28 +27,161 @@ A distributed movie ticket booking system featuring a **FastAPI** backend, a 3-n
 - **System Requirements**: 6GB RAM (for LLM), ~10GB free disk space.
 - **Optional**: For Arch Linux, see [INSTALL_DOCKER.md](docs/INSTALL_DOCKER.md).
 
+## 📚 Documentation
+
+### Core Documentation
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture and design
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - Getting started guide
+- **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Command reference and API table
+- **[DOCKER.md](docs/DOCKER.md)** - Docker setup and configuration
+
+### Feature Documentation
+- **[CLIENT_VIEW.md](docs/CLIENT_VIEW.md)** - Complete API documentation with examples
+- **[CLIENT_VIEW_GUIDE.md](docs/CLIENT_VIEW_GUIDE.md)** - Enhanced client view testing guide
+- **[CLIENT_VIEW_TESTING.md](docs/CLIENT_VIEW_TESTING.md)** - Testing procedures and troubleshooting
+
+### Implementation Documentation
+- **[FIXES_SUMMARY.md](docs/FIXES_SUMMARY.md)** - Database integration and seat management fixes
+- **[RAFT_TESTING.md](docs/RAFT_TESTING.md)** - Raft cluster testing and consistency verification
+- **[LLM_TESTING.md](docs/LLM_TESTING.md)** - LLM server testing guide
+
+## 🛠️ Scripts
+
+All scripts are located in the `scripts/` folder:
+
+- **[check_health.sh](scripts/check_health.sh)** - Check health of all services
+- **[start.sh](scripts/start.sh)** - Start all Docker services
+- **[demo_client_view.sh](scripts/demo_client_view.sh)** - Demonstrate client view functionality
+- **[demo_gui_features.sh](scripts/demo_gui_features.sh)** - GUI feature demonstration via CLI
+- **[test_database_integration.sh](scripts/test_database_integration.sh)** - Test database integration
+
 ## 🚀 Quick Start
 
-1. **Start all services**:
-   ```bash
-   docker compose up -d
-   ```
-   *Note*: Use `docker-compose up -d` if Compose V1 is installed. First run may take 30–60 seconds due to LLM model download.
+### Step 1: Start Docker Services
 
-2. **Verify health**:
+```bash
+# Start all services (app-server, llm-server, raft nodes)
+sudo docker compose up -d
+
+# Wait for services to initialize (30-60 seconds for first run)
+sleep 5
+
+# Check if services are running
+sudo docker compose ps
+```
+
+**Expected Output:**
+```
+NAME                IMAGE           STATUS
+movie-app-server    ds-app-server   Up (healthy)
+movie-llm-server    ds-llm-server   Up
+raft-node1          ds-raft-node1   Up
+raft-node2          ds-raft-node2   Up
+raft-node3          ds-raft-node3   Up
+```
+
+### Step 2: Verify Services Health
+
+```bash
+# Quick health check
+curl http://localhost:9000/health
+curl http://localhost:50051/status
+
+# Or use the health check script
+./scripts/check_health.sh
+```
+
+### Step 3: Open the GUI Application
+
+**Option A: With X11 Forwarding (Remote Access from Mac/Linux)**
+
+1. **On your Mac**, install XQuartz:
    ```bash
-   ./check_health.sh
-   ```
-   Or check individually:
-   ```bash
-   curl http://localhost:9000/health
-   curl http://localhost:8500/health
-   curl http://localhost:50051/status
+   brew install --cask xquartz
+   # Log out and back in after installation
    ```
 
-3. **Default test users**:
-   - `admin` / `123`
-   - `utkarsh` / `password123`
+2. **Update SSH config** on Mac (`~/.ssh/config`):
+   ```ssh_config
+   Host archlinux
+     HostName <your-host-ip>
+     User <your-username>
+     ForwardX11 yes
+     ForwardX11Trusted yes
+   ```
+
+3. **Connect with X11 forwarding**:
+   ```bash
+   ssh -X archlinux
+   ```
+
+4. **Run the GUI**:
+   ```bash
+   cd /home/aniket/study/ds
+   ./venv/bin/python app.py
+   ```
+
+**Option B: Local Desktop Access**
+
+If you have physical access or VNC/RDP:
+
+```bash
+cd /home/aniket/study/ds
+./venv/bin/python app.py
+```
+
+**Option C: CLI Testing (No GUI Required)**
+
+Test all functionality without graphical display:
+
+```bash
+# Run comprehensive test suite
+./venv/bin/python tests/test_complete_system.py
+
+# Or use CLI demo
+./scripts/demo_gui_features.sh
+```
+
+### Step 4: Use the Application
+
+**Admin Dashboard Features:**
+- **Add movies with custom seat counts**: Input movie name, city, and number of available seats
+- View all movies in database with real-time seat availability
+- Test database consistency across Raft nodes
+- Simulate multiple client bookings
+- Default login: `admin` / `123`
+
+**Client Dashboard Features:**
+- Browse available movies with city and seat information
+- Book tickets with custom quantity (seat count decrements automatically)
+- View personal booking history
+- Register new accounts with validation
+- Real-time data refresh from server
+
+### Key Features
+
+✨ **Database Integration**
+- Movies persist in SQLite database
+- Seat counts stored and managed automatically
+- Data survives server restarts
+
+✨ **Seat Management**
+- Admin sets initial seat count when adding movies (default: 50)
+- Seats decrement automatically on booking
+- Validation prevents overbooking
+- Real-time seat availability display
+
+✨ **Raft Consensus**
+- 3-node cluster with automatic leader election
+- Health monitoring via `/status` endpoints
+- Fault tolerance and coordination
+
+### Default Test Users
+
+| Username  | Password      | Role   |
+|-----------|---------------|--------|
+| `admin`   | `123`         | Admin  |
+| `utkarsh` | `password123` | User   |
 
 ## 🧪 Try It Out
 
@@ -126,6 +259,63 @@ curl -X POST http://localhost:9000/business \
 
 See [CLIENT_VIEW.md](docs/CLIENT_VIEW.md) for complete documentation.
 
+## 🧪 Testing
+
+### Automated Tests
+
+All test files are located in the `tests/` folder:
+
+```bash
+# Complete system test (Python) - Tests database, seats, booking, Raft
+./venv/bin/python tests/test_complete_system.py
+
+# Client view test
+./venv/bin/python tests/test_client_view.py
+
+# LLM server test
+./venv/bin/python tests/test_llm.py
+
+# Database integration test (Shell)
+./scripts/test_database_integration.sh
+
+# Client view demonstration (Shell)
+./scripts/demo_client_view.sh
+
+# GUI features demonstration (Shell)
+./scripts/demo_gui_features.sh
+```
+
+**Expected Test Results:**
+```
+✅ Health Check: Passed
+✅ Database Integration: Movies stored and retrieved
+✅ Seat Management: Counts display correctly (not "N/A")
+✅ Booking Logic: Seats decrement (100 → 85 → 70)
+✅ Validation: Insufficient seats rejected
+✅ Raft Cluster: All 3 nodes healthy, leader election working
+```
+
+### Manual Testing
+
+Test individual components:
+
+```bash
+# Health checks
+./scripts/check_health.sh
+
+# Test Raft cluster
+curl http://localhost:50051/status
+curl http://localhost:50052/status
+curl http://localhost:50053/status
+
+# Test LLM server
+curl -X POST http://localhost:8500/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question":"What is the booking process?"}'
+```
+
+See [CLIENT_VIEW_TESTING.md](docs/CLIENT_VIEW_TESTING.md) and [RAFT_TESTING.md](docs/RAFT_TESTING.md) for detailed testing procedures.
+
 ## 📚 Documentation
 
 - [QUICKSTART.md](docs/QUICKSTART.md): 2-minute setup guide.
@@ -137,6 +327,8 @@ See [CLIENT_VIEW.md](docs/CLIENT_VIEW.md) for complete documentation.
 
 ## 🩺 Troubleshooting
 
+### Common Issues
+
 - **"command not found: docker-compose"**: Use `docker compose` or install Compose V2.
 - **Ports in use**: Free ports `9000`, `8500`, `50051-50053` or edit `docker-compose.yml`.
 - **LLM slow on first call**: Model loads on first request; subsequent calls are faster.
@@ -144,6 +336,20 @@ See [CLIENT_VIEW.md](docs/CLIENT_VIEW.md) for complete documentation.
   ```bash
   docker compose up -d app-server raft-node1 raft-node2 raft-node3
   ```
+
+### GUI Display Issues
+
+**Error: `_tkinter.TclError: no display name and no $DISPLAY environment variable`**
+
+This means you're in a terminal-only session. Solutions:
+
+1. **Use X11 Forwarding** (see "Step 3: Open the GUI Application" above)
+2. **Use CLI Testing** instead:
+   ```bash
+   ./venv/bin/python tests/test_complete_system.py
+   ```
+
+See [CLIENT_VIEW_GUIDE.md](docs/CLIENT_VIEW_GUIDE.md) for detailed GUI troubleshooting.
 
 ## 📁 Project Structure
 
@@ -155,25 +361,52 @@ ds/
 ├── Dockerfile.app             # Application server image
 ├── Dockerfile.raft            # Raft node image
 ├── Dockerfile.llm             # LLM server image
+├── app.py                     # GUI application (admin & client dashboards)
+├── main.py                    # Main entry point
 ├── Application_server/        # FastAPI backend
-│   └── Application_server.py
+│   └── Application_server.py  # REST API with database integration
 ├── raft/                      # Raft consensus implementation
-│   ├── raft_node.py
-│   └── raft_state.py
+│   ├── raft_node.py          # Raft node with leader election
+│   └── raft_state.py         # Raft state management
 ├── llm/                       # AI assistant server
 │   ├── llm_server.py         # Qwen2.5-0.5B integration
-│   └── storage.py            # Database functions
+│   └── storage.py            # Database functions (SQLite)
 ├── client/                    # Client simulator
 │   └── client.py
 ├── proto/                     # gRPC definitions
 │   └── raft.proto
-├── test_llm.py               # LLM test suite
-├── check_health.sh           # Health check script
-└── docs/                     # Documentation
+├── tests/                     # Test files
+│   ├── test_complete_system.py    # Full system test
+│   ├── test_client_view.py        # Client view tests
+│   ├── test_llm.py               # LLM server tests
+│   ├── test_booking.py           # Booking tests
+│   └── test_raft.py              # Raft tests
+├── scripts/                   # Shell scripts
+│   ├── check_health.sh       # Health check script
+│   ├── start.sh              # Start services
+│   ├── demo_client_view.sh   # Client demo
+│   ├── demo_gui_features.sh  # GUI demo (CLI)
+│   └── test_database_integration.sh
+└── docs/                      # Documentation (11 files)
+    ├── ARCHITECTURE.md
     ├── QUICKSTART.md
+    ├── QUICK_REFERENCE.md
     ├── DOCKER.md
+    ├── CLIENT_VIEW.md
+    ├── CLIENT_VIEW_GUIDE.md
+    ├── CLIENT_VIEW_TESTING.md
+    ├── FIXES_SUMMARY.md
+    ├── RAFT_TESTING.md
+    └── LLM_TESTING.md
+    ├── QUICK_REFERENCE.md
+    ├── DOCKER.md
+    ├── ARCHITECTURE.md
     ├── LLM_TESTING.md
-    └── ARCHITECTURE.md
+    ├── CLIENT_VIEW.md
+    ├── CLIENT_VIEW_GUIDE.md
+    ├── CLIENT_VIEW_TESTING.md
+    ├── FIXES_SUMMARY.md
+    └── RAFT_TESTING.md
 ```
 
 ## 🔌 API Endpoints
@@ -711,7 +944,7 @@ docker compose ps
 docker compose logs --tail=50
 
 # Run health check
-./check_health.sh
+./scripts/check_health.sh
 ```
 
 ### Common Issues
