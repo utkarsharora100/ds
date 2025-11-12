@@ -12,6 +12,7 @@ services:
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=9000
+      - MONGODB_URL=mongodb://mongodb:27017/
     networks:
       - movie-booking-network
     healthcheck:
@@ -20,6 +21,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+
+  # MongoDB - Database
+  mongodb:
+    image: mongo:7.0
+    container_name: movie-booking-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   # Raft Node 1 - Consensus layer
@@ -107,7 +128,6 @@ networks:
     driver: bridge
     name: movie-booking-net
 
-# Optional: Add volumes for persistent storage
-# volumes:
-#   movie-db-data:
-#   raft-logs:
+volumes:
+  mongodb-data:
+    driver: local

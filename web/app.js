@@ -536,3 +536,110 @@ window.onclick = function(event) {
 
 // Show login page on load
 showLogin();
+
+
+// ============================================================================
+// AI CHATBOX FUNCTIONS
+// ============================================================================
+
+function toggleChat() {
+    const chatBox = document.getElementById('chatBox');
+    const chatButton = document.getElementById('chatButton');
+    
+    if (chatBox.classList.contains('active')) {
+        chatBox.classList.remove('active');
+        chatButton.style.display = 'block';
+    } else {
+        chatBox.classList.add('active');
+        chatButton.style.display = 'none';
+        // Focus input when opening
+        document.getElementById('chatInput').focus();
+    }
+}
+
+function handleChatKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendChatMessage();
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addChatMessage(message, 'user');
+    input.value = '';
+    
+    // Add loading message
+    const loadingId = addChatMessage('Thinking...', 'loading');
+    
+    try {
+        // Send to LLM via proxy endpoint
+        const response = await fetch(`${API_BASE}/proxy/llm/ask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: message })
+        });
+        
+        const data = await response.json();
+        
+        // Remove loading message
+        removeMessage(loadingId);
+        
+        if (data.status === 'error' || data.status === 'unavailable') {
+            addChatMessage(
+                'Sorry, the AI assistant is currently unavailable. Please try again later or contact support.',
+                'bot'
+            );
+        } else {
+            // Add bot response
+            const answer = data.answer || data.response || 'I apologize, but I could not generate a response.';
+            addChatMessage(answer, 'bot');
+        }
+    } catch (error) {
+        removeMessage(loadingId);
+        addChatMessage(
+            'Sorry, I am having trouble connecting to the AI service. The system works without the AI assistant.',
+            'bot'
+        );
+        console.error('Chat error:', error);
+    }
+    
+    // Scroll to bottom
+    const messagesContainer = document.getElementById('chatMessages');
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function addChatMessage(text, type) {
+    const messagesContainer = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    const messageId = 'msg-' + Date.now();
+    messageDiv.id = messageId;
+    
+    if (type === 'user') {
+        messageDiv.className = 'chat-message user-message';
+    } else if (type === 'loading') {
+        messageDiv.className = 'chat-message loading-message';
+    } else {
+        messageDiv.className = 'chat-message bot-message';
+    }
+    
+    const p = document.createElement('p');
+    p.textContent = text;
+    messageDiv.appendChild(p);
+    
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    
+    return messageId;
+}
+
+function removeMessage(messageId) {
+    const message = document.getElementById(messageId);
+    if (message) {
+        message.remove();
+    }
+}

@@ -184,6 +184,28 @@
     <!-- Notification Toast -->
     <div id="toast" class="toast"></div>
 
+    <!-- AI Chat Button (Floating) -->
+    <button id="chatButton" class="chat-button" onclick="toggleChat()" title="Chat with AI Assistant">
+        💬
+    </button>
+
+    <!-- AI Chat Box -->
+    <div id="chatBox" class="chat-box">
+        <div class="chat-header">
+            <h3>🤖 AI Assistant</h3>
+            <button class="chat-close" onclick="toggleChat()">&times;</button>
+        </div>
+        <div id="chatMessages" class="chat-messages">
+            <div class="chat-message bot-message">
+                <p>Hi! I'm your AI assistant. Ask me anything about the movie booking system!</p>
+            </div>
+        </div>
+        <div class="chat-input-container">
+            <input type="text" id="chatInput" placeholder="Type your question..." onkeypress="handleChatKeyPress(event)">
+            <button onclick="sendChatMessage()" class="btn btn-primary">Send</button>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
