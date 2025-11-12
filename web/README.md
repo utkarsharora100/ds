@@ -14,17 +14,21 @@ A modern, responsive web-based frontend for the Distributed Movie Booking System
 
 ## Quick Start
 
-### Option 1: Local Server (Recommended)
+### Option 1: Use Combined Docker Setup (Recommended)
+
+The combined Docker setup includes the web frontend. Just start the services:
+
+```bash
+docker compose -f docker-compose.combined.yml up -d --build
+```
+
+Then access: **http://localhost:3000**
+
+### Option 2: Local Server (Development)
 
 1. **Ensure backend services are running:**
    ```bash
-   # Linux/Mac
-   cd /home/aniket/study/ds
-   sudo docker compose ps  # Verify all services are up
-   
-   # Windows
-   cd "C:\Users\utkarsh\Desktop\New folder (3)\ds"
-   docker compose ps
+   docker compose ps  # Verify all services are up
    ```
 
 2. **Start a simple HTTP server:**
@@ -34,10 +38,8 @@ A modern, responsive web-based frontend for the Distributed Movie Booking System
    # Linux/Mac - Use port 8080
    python3 -m http.server 8080
    
-   # Windows - Use port 8000 (8080 is reserved by Windows)
-   python -m http.server 8000
-   # OR
-   python3 -m http.server 8000
+   # Windows - Use port 3000 (8080 is reserved by Windows)
+   python -m http.server 3000 --bind 127.0.0.1
    ```
 
 3. **Open in browser:**
@@ -46,12 +48,12 @@ A modern, responsive web-based frontend for the Distributed Movie Booking System
    http://localhost:8080
    
    # Windows
-   http://localhost:8000
+   http://localhost:3000
    ```
 
-**⚠️ Windows Users:** Port 8080 is reserved by Windows (range 7985-8084). Use port 8000, 3000, or 5000 instead.
+**⚠️ Windows Users:** Port 8080 is reserved by Windows. Use port 3000, 8000, or 5000 instead.
 
-### Option 2: Remote Access via SSH Port Forwarding
+### Option 3: Remote Access via SSH Port Forwarding
 
 If accessing from a remote machine:
 
@@ -172,30 +174,18 @@ Click "Register New Account" on the login page.
 
 **Cause:** Port 8080 is in Windows reserved port range (7985-8084).
 
-**Solution 1: Use a different port (Recommended)**
+**Solution: Use port 3000 with localhost binding**
 ```powershell
-# Use port 8000 instead
 cd web
-python -m http.server 8000
-# Then open http://localhost:8000
+python -m http.server 3000 --bind 127.0.0.1
+# Then open http://localhost:3000
 ```
 
-**Solution 2: Check reserved ports**
+**Alternative ports:**
 ```powershell
-netsh interface ipv4 show excludedportrange protocol=tcp
+python -m http.server 8000 --bind 127.0.0.1   # http://localhost:8000
+python -m http.server 5000 --bind 127.0.0.1   # http://localhost:5000
 ```
-
-**Solution 3: Use alternative ports**
-```powershell
-# Try these ports (not reserved):
-python -m http.server 3000   # http://localhost:3000
-python -m http.server 5000   # http://localhost:5000
-python -m http.server 8888   # http://localhost:8888
-```
-
-**Solution 4: Run as Administrator (if you must use 8080)**
-1. Right-click PowerShell → "Run as Administrator"
-2. Run: `python -m http.server 8080`
 
 ### "Could not connect to server"
 
