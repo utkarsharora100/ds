@@ -198,6 +198,13 @@ class App(ctk.CTk):
                                   command=self.clear_database,
                                   fg_color="red", hover_color="darkred")
         clear_btn.grid(row=0, column=5, padx=5)
+        
+        # Add "System Health" button
+        health_btn = ctk.CTkButton(add_frame, text="System Health",
+                                  command=self.open_health_check_window,
+                                  fg_color="purple", hover_color="#4a0e4e")
+        health_btn.grid(row=0, column=6, padx=5)
+
 
         # ---------------- MOVIE TABLE ----------------
         self.movie_table = ttk.Treeview(self, columns=("movie", "city", "seats"), show="headings", height=6)
@@ -244,7 +251,7 @@ class App(ctk.CTk):
         ).json()
         
         if resp.get("status") == "success":
-            print(f"[CLIENT] Movie added: {movie_name} ({city}) - {seats_count} seats")
+            messagebox.showinfo("Success", f"Movie '{movie_name}' proposed for addition.")
             self.refresh_movies_admin()
         else:
             print(f"[CLIENT] Failed to add movie: {resp.get('message')}")
@@ -324,6 +331,75 @@ class App(ctk.CTk):
                     )
         except Exception as e:
             print(f"[CLIENT] Error refreshing movies: {e}")
+
+    def open_health_check_window(self):
+        """Opens a new window to display the output of check_health.sh"""
+        health_window = ctk.CTkToplevel(self)
+        health_window.title("System Health Check")
+        health_window.geometry("700x400")
+
+        health_window.grid_columnconfigure(0, weight=1)
+        health_window.grid_rowconfigure(0, weight=1)
+
+        textbox = ctk.CTkTextbox(health_window, font=("Courier New", 12))
+        textbox.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        textbox.insert("end", "🚀 Running health checks...\n\n")
+
+        def run_health_check():
+            script_path = os.path.join(PROJECT_ROOT, "scripts", "check_health.sh")
+            # Command to execute the health check script inside the app-server container
+            command = [
+                "docker", "exec", "movie-app-server",
+                "/bin/sh", "/app/scripts/check_health.sh"
+            ]
+            
+            if not os.path.exists(script_path):
+                self.after(0, lambda: textbox.insert("end", f"❌ ERROR: Script not found at {script_path}\n"))
+                return
+            self.after(0, lambda: textbox.insert("end", f"$ {' '.join(command)}\n\n"))
+
+            # Make script executable if not already
+            if os.name != 'nt':
+                os.chmod(script_path, 0o755)
+            try:
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    cwd=PROJECT_ROOT
+                )
+
+            process = subprocess.Popen(
+                [script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+                cwd=PROJECT_ROOT
+            )
+                for line in process.stdout:
+                    # Use 'after' to schedule the update on the main thread
+                    self.after(0, lambda l=line: textbox.insert("end", l))
+                
+                process.wait()
+                self.after(0, lambda: textbox.insert("end", "\n✅ Health check complete."))
+            except FileNotFoundError:
+                self.after(0, lambda: textbox.insert("end", "❌ ERROR: 'docker' command not found. Is Docker installed and in your system's PATH?\n"))
+            except Exception as e:
+                self.after(0, lambda: textbox.insert("end", f"❌ An error occurred: {str(e)}\nMake sure the 'movie-app-server' container is running.\n"))
+
+            for line in process.stdout:
+                # Use 'after' to schedule the update on the main thread
+                self.after(0, lambda l=line: textbox.insert("end", l))
+            
+            process.wait()
+            self.after(0, lambda: textbox.insert("end", "\n✅ Health check complete."))
+
+        threading.Thread(target=run_health_check, daemon=True).start()
 
     # ----------------------------------------------------------------------------
     # CLIENT SIMULATION

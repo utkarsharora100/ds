@@ -7,9 +7,14 @@ import customtkinter as ctk
 from tkinter import messagebox, ttk
 import threading
 import time
+import os
+import subprocess
+import sys
 import requests
 import uuid
 import multiprocessing
+
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -79,6 +84,13 @@ class AdminWindow(ctk.CTk):
             command=self.add_movie,
             width=150
         ).grid(row=1, column=3, padx=5, pady=5)
+
+        # Add "System Health" button
+        health_btn = ctk.CTkButton(add_frame, text="System Health",
+                                  command=self.open_health_check_window,
+                                  fg_color="purple", hover_color="#4a0e4e")
+        health_btn.grid(row=1, column=4, padx=10, pady=5)
+
         
         # Movies Table
         table_frame = ctk.CTkFrame(self)
@@ -241,6 +253,52 @@ class AdminWindow(ctk.CTk):
         
         threading.Thread(target=refresh_loop, daemon=True).start()
 
+    def open_health_check_window(self):
+        """Opens a new window to display the output of check_health.sh"""
+        health_window = ctk.CTkToplevel(self)
+        health_window.title("System Health Check")
+        health_window.geometry("700x400")
+
+        health_window.grid_columnconfigure(0, weight=1)
+        health_window.grid_rowconfigure(0, weight=1)
+
+        textbox = ctk.CTkTextbox(health_window, font=("Courier New", 12))
+        textbox.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        textbox.insert("end", "🚀 Running health checks via Docker...\n\n")
+
+        def run_health_check():
+            # Command to execute the Python health check script directly
+            script_path = os.path.join(PROJECT_ROOT, "scripts", "check_system_health.py")
+            command = [
+                sys.executable, # Use the same python interpreter running the GUI
+                script_path
+            ]
+            
+            self.after(0, lambda: textbox.insert("end", f"$ {' '.join(command)}\n\n"))
+
+            try:
+                process = subprocess.Popen(
+                    command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True,
+                    cwd=PROJECT_ROOT
+                )
+
+                for line in process.stdout:
+                    self.after(0, lambda l=line: textbox.insert("end", l))
+                
+                process.wait()
+                self.after(0, lambda: textbox.insert("end", "\n✅ Health check complete."))
+            except Exception as e:
+                self.after(0, lambda: textbox.insert("end", f"❌ An error occurred: {str(e)}\n"
+                                                              f"Ensure Python's dependencies are installed (`pip install -r requirements.txt`) "
+                                                              f"and that the Docker services are running.\n"))
+
+        threading.Thread(target=run_health_check, daemon=True).start()
+
 
 # ----------------------------------------------------------------------------
 # CLIENT WINDOW
@@ -352,6 +410,29 @@ class ClientWindow(ctk.CTk):
             width=150
         ).pack(side="left", padx=5)
         
+        # AI Assistant Section
+        ai_frame = ctk.CTkFrame(self)
+        ai_frame.pack(pady=10, padx=10, fill="both", expand=True)
+        
+        ctk.CTkLabel(
+            ai_frame,
+            text="🤖 AI Assistant - Ask a Question",
+            font=("Arial", 18, "bold")
+        ).pack(pady=5)
+        
+        self.ai_chat_box = ctk.CTkTextbox(ai_frame, height=100, font=("Arial", 14))
+        self.ai_chat_box.pack(fill="both", expand=True, pady=5, padx=10)
+        self.ai_chat_box.insert("end", "Welcome! How can I help you with your booking today?\n")
+        self.ai_chat_box.configure(state="disabled")
+        
+        ai_input_frame = ctk.CTkFrame(ai_frame)
+        ai_input_frame.pack(fill="x", pady=5, padx=10)
+        
+        self.ai_question_entry = ctk.CTkEntry(ai_input_frame, placeholder_text="e.g., How do I cancel a ticket?")
+        self.ai_question_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        ctk.CTkButton(ai_input_frame, text="Ask AI", command=self.ask_ai).pack(side="left")
+        
         # My Bookings Section
         bookings_frame = ctk.CTkFrame(self)
         bookings_frame.pack(pady=5, padx=10, fill="both", expand=True)
@@ -432,6 +513,46 @@ class ClientWindow(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"Booking error: {e}")
     
+    def ask_ai(self):
+        """Send a question to the LLM server and display the response."""
+        question = self.ai_question_entry.get().strip()
+        if not question:
+            return
+
+        # Update chatbox with user's question
+        self.ai_chat_box.configure(state="normal")
+        self.ai_chat_box.insert("end", f"\n👤 You: {question}\n")
+        self.ai_chat_box.insert("end", "\n🤖 Assistant: Thinking...\n")
+        self.ai_chat_box.configure(state="disabled")
+        self.ai_question_entry.delete(0, 'end')
+
+        def get_ai_response():
+            try:
+                # Use the proxy endpoint on the application server
+                resp = requests.post(
+                    "http://127.0.0.1:9000/proxy/llm/ask",
+                    json={"question": question},
+                    timeout=20  # LLMs can be slow, use a longer timeout
+                ).json()
+
+                answer = resp.get("answer", "Sorry, I encountered an error.")
+
+            except requests.RequestException as e:
+                answer = f"Could not connect to the AI assistant: {e}"
+
+            # Schedule the UI update on the main thread
+            self.after(0, self.update_ai_chatbox, answer)
+
+        threading.Thread(target=get_ai_response, daemon=True).start()
+
+    def update_ai_chatbox(self, answer):
+        """Update the AI chatbox with the assistant's response."""
+        self.ai_chat_box.configure(state="normal")
+        # Delete the "Thinking..." message
+        self.ai_chat_box.delete("end-3l", "end-1l")
+        self.ai_chat_box.insert("end", f"{answer}\n")
+        self.ai_chat_box.configure(state="disabled")
+
     def refresh_data(self):
         """Refresh movies and personal bookings (only for current user)"""
         # Refresh movies

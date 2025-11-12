@@ -37,8 +37,6 @@ pip install -r requirements-app.txt
 ### Step 3: Launch GUI
 
 ```bash
-python app.py              # Single window
-python app_multi.py        # Multi window (3 clients + admin)
 ```
 
 **That's it!** ✅

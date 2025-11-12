@@ -32,24 +32,13 @@ def main():
     
     port = port_map[node_id]
     
-    # Configure peers (other nodes)
-    # In Docker, use service names; locally, use localhost
-    docker_env = os.environ.get("DOCKER_ENV", "false").lower() == "true"
-    
-    if docker_env:
-        # Docker environment - use service names
-        peers = {
-            "node1": "raft-node1:50051",
-            "node2": "raft-node2:50052",
-            "node3": "raft-node3:50053"
-        }
-    else:
-        # Local environment - use localhost
-        peers = {
-            "node1": "localhost:50051",
-            "node2": "localhost:50052",
-            "node3": "localhost:50053"
-        }
+    # Configure peers (other nodes). This relies on service names defined
+    # in docker-compose.yml, which is the primary run method.
+    peers = {
+        "node1": "raft-node1:50051",
+        "node2": "raft-node2:50052",
+        "node3": "raft-node3:50053"
+    }
     
     # Remove self from peers
     peers.pop(node_id, None)
@@ -66,4 +55,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

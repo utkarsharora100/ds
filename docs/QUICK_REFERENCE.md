@@ -5,8 +5,7 @@
 | Method | Docker File | Interface | Quick Start |
 |--------|-------------|-----------|-------------|
 | **Method 1** | `docker-compose.yml` | Desktop GUI | `docker compose up -d` then `python app.py` |
-| **Method 2** | `docker-compose.combined.yml` | Web UI | `docker compose -f docker-compose.combined.yml up -d` |
-
+| **Method 
 ---
 
 ## Docker Commands
@@ -406,10 +405,9 @@ env | grep LLM
 - `Dockerfile.app` - Application server
 - `Dockerfile.raft` - Raft nodes
 - `Dockerfile.llm` - LLM server
-
 ### Code
-- `Application_server/Application_server.py` - Main app server
-- `llm/llm_server.py` - LLM server with Qwen2.5
+cation_server/Application_server.py` - Main app server
+- `llm/lm_server.py` - LLM server with Qwen2.5
 - `raft/raft_node.py` - Raft implementation
 - `app.py` - Single-window GUI
 - `app_multi.py` - Multi-window GUI
