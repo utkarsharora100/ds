@@ -57,6 +57,8 @@ class ApplicationServer:
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
         
+        username = self.sessions[token]
+        
         # If requesting movies, fetch from database
         if data_type == "movies":
             movies = storage.get_all_movies(self.db)
@@ -66,6 +68,19 @@ class ApplicationServer:
                 for idx, movie in enumerate(movies)
             ]
             return {"status": "success", "data": formatted_movies}
+        
+        # For bookings, include username in context for filtering
+        if data_type == "bookings":
+            # Add username context to each booking for client-side filtering
+            bookings_with_context = []
+            for booking in self.store.get("bookings", []):
+                booking_copy = booking.copy()
+                # Add context with username from booking data
+                booking_copy["context"] = {
+                    "username": booking["data"].get("user", "unknown")
+                }
+                bookings_with_context.append(booking_copy)
+            return {"status": "success", "data": bookings_with_context}
         
         # For other data types, use in-memory store
         if data_type not in self.store:
@@ -180,6 +195,93 @@ async def add_movie(req: Request):
         city=data["city"],
         seats=data.get("seats", 50)  # Default to 50 seats if not provided
     ))
+
+# ---------------------- NEW: ADMIN ENDPOINTS ----------------------
+@app.post("/admin/clear_database")
+async def clear_database_endpoint(req: Request):
+    """Admin endpoint to clear all movies and bookings"""
+    data = await req.json()
+    token = data.get("token")
+    
+    if token not in server.sessions:
+        return JSONResponse({"status": "failure", "message": "Unauthorized"})
+    
+    user = server.sessions[token]
+    if user != "admin":
+        return JSONResponse({"status": "failure", "message": "Admin access required"})
+    
+    # Clear database
+    movies = storage.get_all_movies(server.db)
+    movies_count = len(movies)
+    bookings_count = len(server.store["bookings"])
+    
+    # Clear SQLite movies
+    cursor = server.db.cursor()
+    cursor.execute("DELETE FROM movies")
+    server.db.commit()
+    
+    # Clear in-memory bookings
+    server.store["bookings"] = []
+    
+    print(f"[SERVER] 🗑️ Database cleared by admin - {bookings_count} bookings, {movies_count} movies removed")
+    return JSONResponse({
+        "status": "success",
+        "message": "Database cleared successfully",
+        "cleared": {
+            "bookings": bookings_count,
+            "movies": movies_count
+        }
+    })
+
+@app.post("/admin/load_sample_data")
+async def load_sample_data_endpoint(req: Request):
+    """Admin endpoint to load sample movies for demonstration"""
+    data = await req.json()
+    token = data.get("token")
+    
+    if token not in server.sessions:
+        return JSONResponse({"status": "failure", "message": "Unauthorized"})
+    
+    user = server.sessions[token]
+    if user != "admin":
+        return JSONResponse({"status": "failure", "message": "Admin access required"})
+    
+    # Clear existing data
+    cursor = server.db.cursor()
+    cursor.execute("DELETE FROM movies")
+    server.db.commit()
+    server.store["bookings"] = []
+    
+    # Load sample movies
+    sample_movies = [
+        ("Inception", "New York", 120),
+        ("Inception", "Los Angeles", 100),
+        ("The Dark Knight", "New York", 150),
+        ("The Dark Knight", "Chicago", 80),
+        ("Interstellar", "San Francisco", 90),
+        ("Interstellar", "Boston", 110),
+        ("Avengers Endgame", "New York", 200),
+        ("Avengers Endgame", "Los Angeles", 180),
+        ("Spider-Man", "Chicago", 100),
+        ("Spider-Man", "Miami", 75),
+        ("Joker", "New York", 85),
+        ("Joker", "Seattle", 95),
+        ("Parasite", "San Francisco", 70),
+        ("Dune", "Los Angeles", 130),
+        ("Oppenheimer", "New York", 160)
+    ]
+    
+    for movie, city, seats in sample_movies:
+        storage.add_movie_to_db(server.db, movie, city, seats)
+    
+    print(f"[SERVER] 📦 Sample data loaded - {len(sample_movies)} movies")
+    return JSONResponse({
+        "status": "success",
+        "message": "Sample data loaded successfully",
+        "loaded": {
+            "movies": len(sample_movies)
+        }
+    })
 
 # ---------------------- RUN SERVER ----------------------
 if __name__ == "__main__":

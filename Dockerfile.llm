@@ -1,18 +1,18 @@
-# Dockerfile for LLM Server
+# Dockerfile for LLM Server with Qwen2.5-0.5B
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for PyTorch
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements first (for better Docker layer caching)
 COPY requirements.txt .
-# Increase pip timeout for large packages like torch (670MB)
-RUN pip install --no-cache-dir --default-timeout=1000 --retries 5 -r requirements.txt
+
+# Install Python dependencies with extended timeout
+RUN pip install --default-timeout=1000 --retries 5 --no-cache-dir -r requirements.txt
 
 # Copy LLM code
 COPY llm/ ./llm/
@@ -20,5 +20,5 @@ COPY llm/ ./llm/
 # Expose port
 EXPOSE 8500
 
-# Run the LLM server
+# Run the full LLM server with torch and transformers
 CMD ["python", "-m", "uvicorn", "llm.llm_server:app", "--host", "0.0.0.0", "--port", "8500"]

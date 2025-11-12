@@ -22,7 +22,7 @@ uvicorn==0.38.0
 
 # LLM dependencies (for llm-server only)
 torch==2.1.0
-transformers==4.35.0
+transformers>=4.37.0
 accelerate==0.24.0
 sentencepiece==0.1.99
 protobuf==3.20.3

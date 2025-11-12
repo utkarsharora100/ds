@@ -186,6 +186,18 @@ class App(ctk.CTk):
         add_btn = ctk.CTkButton(add_frame, text="Add Movie",
                                 command=lambda: self.add_movie(movie_entry.get(), city_entry.get(), seats_entry.get()))
         add_btn.grid(row=0, column=3, padx=5)
+        
+        # Add "Load Sample Data" button
+        sample_btn = ctk.CTkButton(add_frame, text="Load Sample Movies",
+                                    command=self.load_sample_movies,
+                                    fg_color="green", hover_color="darkgreen")
+        sample_btn.grid(row=0, column=4, padx=5)
+        
+        # Add "Clear Database" button
+        clear_btn = ctk.CTkButton(add_frame, text="Clear Database",
+                                  command=self.clear_database,
+                                  fg_color="red", hover_color="darkred")
+        clear_btn.grid(row=0, column=5, padx=5)
 
         # ---------------- MOVIE TABLE ----------------
         self.movie_table = ttk.Treeview(self, columns=("movie", "city", "seats"), show="headings", height=6)
@@ -236,6 +248,55 @@ class App(ctk.CTk):
             self.refresh_movies_admin()
         else:
             print(f"[CLIENT] Failed to add movie: {resp.get('message')}")
+    
+    def load_sample_movies(self):
+        """Load sample movies using the new admin endpoint"""
+        try:
+            resp = requests.post(
+                "http://127.0.0.1:9000/admin/load_sample_data",
+                json={"token": self.client.token},
+                timeout=5
+            ).json()
+            
+            if resp.get("status") == "success":
+                loaded = resp.get("loaded", {})
+                messagebox.showinfo(
+                    "Sample Data Loaded",
+                    f"Successfully loaded {loaded.get('movies', 0)} sample movies!"
+                )
+                self.refresh_movies_admin()
+            else:
+                messagebox.showerror("Error", resp.get("message", "Failed to load sample data"))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load sample data: {str(e)}")
+    
+    def clear_database(self):
+        """Clear all movies and bookings from database"""
+        # Confirm action
+        if not messagebox.askyesno(
+            "Confirm Clear Database",
+            "⚠️ This will DELETE all movies and bookings!\n\nAre you sure you want to continue?"
+        ):
+            return
+        
+        try:
+            resp = requests.post(
+                "http://127.0.0.1:9000/admin/clear_database",
+                json={"token": self.client.token},
+                timeout=5
+            ).json()
+            
+            if resp.get("status") == "success":
+                cleared = resp.get("cleared", {})
+                messagebox.showinfo(
+                    "Database Cleared",
+                    f"Cleared {cleared.get('movies', 0)} movies and {cleared.get('bookings', 0)} bookings"
+                )
+                self.refresh_movies_admin()
+            else:
+                messagebox.showerror("Error", resp.get("message", "Failed to clear database"))
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to clear database: {str(e)}")
     
     def refresh_movies_admin(self):
         """Fetch and display movies from the server for admin view"""
