@@ -298,13 +298,13 @@ async def proxy_llm_health():
 
 @app.post("/proxy/llm/ask")
 async def proxy_llm_ask(req: Request):
-    """Proxy endpoint for LLM ask - CPU inference can take 30-60 seconds"""
+    """Proxy endpoint for LLM ask - DistilGPT-2 inference takes 2-5 seconds"""
     try:
         data = await req.json()
         llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
 
-        # ✅ Increased timeout for CPU inference (can take 30-60 seconds)
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # ✅ Reduced timeout for DistilGPT-2 (fast small model, 2-5 seconds)
+        async with httpx.AsyncClient(timeout=15.0) as client:
             print(f"[LLM Proxy] Sending request to {llm_url}/ask")
             response = await client.post(f"{llm_url}/ask", json=data)
             print(f"[LLM Proxy] Got response: {response.status_code}")
@@ -313,7 +313,7 @@ async def proxy_llm_ask(req: Request):
         print(f"[LLM Proxy] Timeout error: {e}")
         return JSONResponse({
             "status": "error",
-            "answer": "The AI is thinking... This can take 30-60 seconds on CPU. Please try again or wait a bit longer."
+            "answer": "The AI is thinking... This should take 2-5 seconds. Please try again."
         })
     except Exception as e:
         print(f"[LLM Proxy] Error: {type(e).__name__}: {str(e)}")

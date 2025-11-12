@@ -75,3 +75,4 @@ raft_state/
 *.bak
 temp/
 tmp/
+.claude/agents/

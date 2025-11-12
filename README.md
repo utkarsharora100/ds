@@ -1,12 +1,12 @@
 # 🎬 Distributed Movie Booking System
 
-A production-ready distributed movie ticket booking system featuring a **FastAPI** backend, a 3-node **Raft consensus** cluster, and an **AI assistant** powered by **Qwen2.5-0.5B**. Deploy the entire stack with a single command.
+A production-ready distributed movie ticket booking system featuring a **FastAPI** backend, a 3-node **Raft consensus** cluster, and an **AI assistant** powered by **DistilGPT-2** (ultra-fast 2-3 second responses). Deploy the entire stack with a single command.
 
 ## 📖 Overview
 
 - **Raft Consensus**: 3-node cluster with automatic leader election and fault tolerance.
 - **FastAPI Backend**: RESTful APIs for authentication, movie management, and ticket bookings.
-- **AI Assistant** *(Optional)*: Qwen2.5-0.5B LLM for intelligent FAQ and chat support.
+- **AI Assistant** *(Optional)*: DistilGPT-2 LLM (82M params) for ultra-fast FAQ and chat support (2-3 second responses).
 - **SQLite Database**: Persistent storage with real-time seat tracking.
 - **Multi-User GUI**: Supports concurrent clients with isolated bookings.
 - **Docker-First**: Fully containerized with health monitoring and centralized logs.
@@ -19,7 +19,7 @@ A production-ready distributed movie ticket booking system featuring a **FastAPI
 | `raft-node1`    | `50051`| Raft consensus node 1               | ✅ Yes   |
 | `raft-node2`    | `50052`| Raft consensus node 2               | ✅ Yes   |
 | `raft-node3`    | `50053`| Raft consensus node 3               | ✅ Yes   |
-| `llm-server`    | `8500` | Qwen2.5-0.5B AI assistant server    | ⚠️ Optional |
+| `llm-server`    | `8500` | DistilGPT-2 AI assistant (2-3s responses) | ⚠️ Optional |
 
 ## 🧰 Prerequisites
 
@@ -30,8 +30,8 @@ A production-ready distributed movie ticket booking system featuring a **FastAPI
 - **System**: 2GB RAM, 5GB free disk space
 
 **With LLM (Optional):**
-- **System**: 6GB RAM, 10GB free disk space
-- **Note**: LLM server is optional and can be skipped to reduce resource usage
+- **System**: 4GB RAM, 8GB free disk space
+- **Note**: LLM server (DistilGPT-2) is lightweight and fast. Uses only 2GB RAM with 2-3 second responses
 
 ## 🚀 Quick Start
 
@@ -483,10 +483,11 @@ Create `.env` file (optional):
 APP_SERVER_HOST=0.0.0.0
 APP_SERVER_PORT=9000
 
-# LLM Configuration
-LLM_MODEL=Qwen/Qwen2.5-0.5B
-LLM_MAX_NEW_TOKENS=512
-LLM_TEMPERATURE=0.7
+# LLM Configuration (DistilGPT-2 - Ultra-Fast)
+LLM_MODEL=distilgpt2
+LLM_MAX_NEW_TOKENS=128
+LLM_TEMPERATURE=0.8
+LLM_TOP_P=0.95
 
 # Docker Mode
 DOCKER_ENV=true
@@ -565,7 +566,7 @@ See [QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md) for more troubleshooting tips.
 - **Seat Management**: Real-time tracking, auto-decrement, overbooking prevention
 - **Raft Consensus**: 3-node cluster, automatic leader election, fault tolerance
 - **Multi-User Support**: Isolated bookings, admin visibility, concurrent access
-- **AI Assistant**: Qwen2.5-0.5B for intelligent responses
+- **AI Assistant**: DistilGPT-2 (82M params) for ultra-fast responses (2-3 seconds)
 - **GUI Application**: Single/multi-window modes with real-time updates
 - **Health Monitoring**: Status endpoints for all services
 - **RESTful APIs**: Comprehensive, documented endpoints

@@ -103,9 +103,10 @@ services:
     ports:
       - "8500:8500"
     environment:
-      - LLM_MODEL=Qwen/Qwen2.5-0.5B
-      - LLM_MAX_NEW_TOKENS=512
-      - LLM_TEMPERATURE=0.7
+      - LLM_MODEL=distilgpt2
+      - LLM_MAX_NEW_TOKENS=128
+      - LLM_TEMPERATURE=0.8
+      - LLM_TOP_P=0.95
     networks:
       - movie-booking-network
     healthcheck:
@@ -113,15 +114,15 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 15s
     restart: unless-stopped
     # Uncomment below to limit memory usage for LLM
     deploy:
       resources:
         limits:
-          memory: 4G
-        reservations:
           memory: 2G
+        reservations:
+          memory: 1G
 
 networks:
   movie-booking-network:

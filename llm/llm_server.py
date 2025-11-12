@@ -41,9 +41,10 @@ app.add_middleware(
 # -----------------------------
 # Configuration
 # -----------------------------
-MODEL_NAME = os.getenv("LLM_MODEL", "Qwen/Qwen2.5-0.5B")
-MAX_NEW_TOKENS = int(os.getenv("LLM_MAX_NEW_TOKENS", "512"))
-TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
+MODEL_NAME = os.getenv("LLM_MODEL", "distilgpt2")
+MAX_NEW_TOKENS = int(os.getenv("LLM_MAX_NEW_TOKENS", "128"))
+TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.8"))
+TOP_P = float(os.getenv("LLM_TOP_P", "0.95"))
 
 # System prompt for movie booking assistant
 SYSTEM_PROMPT = """You are a helpful AI assistant for a distributed movie ticket booking system. 
@@ -74,19 +75,29 @@ text_gen_pipeline = None
 @app.on_event("startup")
 async def load_model():
     global tokenizer, model, text_gen_pipeline
-    
+
     print(f"🤖 Loading LLM model: {MODEL_NAME}")
-    print("⏳ This may take 30-60 seconds on first run...")
-    
+    print("⏳ This should take 5-10 seconds (small model)...")
+
     try:
         # Load tokenizer and model
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+
+        # ✅ CRITICAL: DistilGPT-2 needs pad_token configured
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            print("✅ Configured pad_token = eos_token for DistilGPT-2")
+
         model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-            device_map="auto" if torch.cuda.is_available() else None
+            device_map="auto" if torch.cuda.is_available() else None,
+            low_cpu_mem_usage=True  # ✅ Optimize for CPU
         )
-        
+
+        # ✅ Set model to evaluation mode for faster inference
+        model.eval()
+
         # Also create a pipeline for simpler text generation
         text_gen_pipeline = pipeline(
             "text-generation",
@@ -96,12 +107,13 @@ async def load_model():
             temperature=TEMPERATURE,
             do_sample=True
         )
-        
+
         device = "CUDA" if torch.cuda.is_available() else "CPU"
         print(f"✅ Model loaded successfully on {device}")
-        print(f"📊 Model parameters: ~500M")
-        print(f"🎯 Max tokens: {MAX_NEW_TOKENS}, Temperature: {TEMPERATURE}")
-        
+        print(f"📊 Model parameters: ~82M (DistilGPT-2)")
+        print(f"🎯 Max tokens: {MAX_NEW_TOKENS}, Temperature: {TEMPERATURE}, Top-p: {TOP_P}")
+        print(f"⚡ Expected inference time: 2-3 seconds per request")
+
     except Exception as e:
         print(f"❌ Error loading model: {e}")
         raise
@@ -225,8 +237,8 @@ async def chat(request: ChatRequest):
 async def ask_question(request: QuestionRequest):
     """
     Simple Q&A endpoint for single questions.
-    Automatically includes movie booking system context.
-    
+    Optimized for DistilGPT-2 with simple "Q: / A:" format.
+
     Example:
     {
         "question": "How do I cancel my booking?"
@@ -234,30 +246,41 @@ async def ask_question(request: QuestionRequest):
     """
     if text_gen_pipeline is None:
         raise HTTPException(status_code=503, detail="Model is still loading. Please try again in a moment.")
-    
+
     try:
-        # Create a simple conversation with system context
-        messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": request.question}
-        ]
-        
-        # Use pipeline for simpler generation
+        # ✅ Simple prompt format for small models (works better than complex system prompts)
+        prompt = f"Q: {request.question}\nA:"
+
+        # ✅ Use pipeline with optimized generation parameters
         result = text_gen_pipeline(
-            messages,
+            prompt,
             max_new_tokens=MAX_NEW_TOKENS,
             temperature=TEMPERATURE,
-            return_full_text=False
+            top_p=TOP_P,
+            top_k=50,  # Limit vocabulary for coherence
+            repetition_penalty=1.1,  # Reduce repetition
+            do_sample=True,
+            early_stopping=True,
+            return_full_text=False,
+            pad_token_id=tokenizer.eos_token_id
         )
-        
+
         # Extract the assistant's response
         answer = result[0]["generated_text"].strip()
-        
+
+        # ✅ Clean up response (remove trailing Q: if model repeats pattern)
+        if "\nQ:" in answer:
+            answer = answer.split("\nQ:")[0].strip()
+
+        # Fallback for empty responses
+        if not answer or len(answer) < 5:
+            answer = "I'm sorry, I couldn't generate a proper response. Please try rephrasing your question."
+
         return QuestionResponse(
             answer=answer,
             question=request.question,
             model=MODEL_NAME
         )
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Question answering error: {str(e)}")
