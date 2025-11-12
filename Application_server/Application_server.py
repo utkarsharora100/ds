@@ -298,14 +298,25 @@ async def proxy_llm_health():
 
 @app.post("/proxy/llm/ask")
 async def proxy_llm_ask(req: Request):
-    """Proxy endpoint for LLM ask"""
+    """Proxy endpoint for LLM ask - CPU inference can take 30-60 seconds"""
     try:
         data = await req.json()
         llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
-        async with httpx.AsyncClient(timeout=10.0) as client:
+
+        # ✅ Increased timeout for CPU inference (can take 30-60 seconds)
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            print(f"[LLM Proxy] Sending request to {llm_url}/ask")
             response = await client.post(f"{llm_url}/ask", json=data)
+            print(f"[LLM Proxy] Got response: {response.status_code}")
             return JSONResponse(response.json())
+    except httpx.TimeoutException as e:
+        print(f"[LLM Proxy] Timeout error: {e}")
+        return JSONResponse({
+            "status": "error",
+            "answer": "The AI is thinking... This can take 30-60 seconds on CPU. Please try again or wait a bit longer."
+        })
     except Exception as e:
+        print(f"[LLM Proxy] Error: {type(e).__name__}: {str(e)}")
         return JSONResponse({
             "status": "error",
             "answer": f"LLM server error: {str(e)}"
