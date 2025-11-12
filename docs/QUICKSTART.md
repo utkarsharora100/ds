@@ -54,7 +54,7 @@ Press `Ctrl+C` to exit logs.
 ### Quick Health Check
 
 ```bash
-./check_health.sh
+./scripts/check_health.sh
 ```
 
 Expected output:
@@ -179,23 +179,26 @@ docker-compose logs -f llm-server
 
 Now that everything is running:
 
-1. **Read the docs**: [README.md](README.md) for full details
-2. **Test the API**: See [LLM_TESTING.md](LLM_TESTING.md)
-3. **Understand the system**: Read [ARCHITECTURE.md](ARCHITECTURE.md)
-4. **Docker deep dive**: Check [DOCKER.md](DOCKER.md)
+1. **Read the docs**: [README.md](../README.md) for full details
+2. **Understand the system**: Read [ARCHITECTURE.md](ARCHITECTURE.md)
+3. **Docker deep dive**: Check [DOCKER.md](DOCKER.md)
+4. **Test Raft consensus**: See [CLIENT_VIEW.md](CLIENT_VIEW.md) for API testing
 
 ---
 
 ## Common Commands
 
 ```bash
-# Start
+# Complete setup with tests
+./quickstart.sh
+
+# Start services
 docker-compose up -d
 
-# Stop
+# Stop services
 docker-compose down
 
-# Restart
+# Restart services
 docker-compose restart
 
 # View logs
@@ -205,7 +208,16 @@ docker-compose logs -f
 docker-compose ps
 
 # Health check
-./check_health.sh
+./scripts/check_health.sh
+
+# Load sample data
+./scripts/load_sample_data.sh
+
+# Reset database
+./scripts/reset_database.sh --force
+
+# Test LLM
+./scripts/test_llm_viability.sh
 ```
 
 ---
@@ -244,11 +256,24 @@ docker-compose ps
 
 ## Need Help?
 
-Check [README.md](README.md) for:
-- Complete API documentation
+Check [README.md](../README.md) for:
+- Complete testing guide (5 options)
+- API documentation
 - Troubleshooting guide
 - Advanced configuration
 - Development workflows
+
+## Available Utility Scripts
+
+All scripts are located in `scripts/` folder:
+
+| Script | Purpose |
+|--------|---------|
+| `quickstart.sh` | Complete setup with Raft & functionality tests |
+| `check_health.sh` | Health check all services |
+| `load_sample_data.sh` | Load 15 sample movies |
+| `reset_database.sh` | Clear all data |
+| `test_llm_viability.sh` | Test LLM endpoints |
 
 ---
 

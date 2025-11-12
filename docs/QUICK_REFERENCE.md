@@ -52,11 +52,11 @@ docker system prune -a
 
 ---
 
-## Health Checks
+### Health Checks
 
 ```bash
 # Quick health check script
-./check_health.sh
+./scripts/check_health.sh
 
 # Manual health checks
 curl http://localhost:9000/health     # App Server
@@ -72,6 +72,9 @@ curl http://localhost:8500/health     # LLM Server
 
 ### Test Endpoints
 ```bash
+# Health check
+curl http://localhost:8500/health
+
 # Simple FAQ question
 curl -X POST http://localhost:8500/ask \
   -H "Content-Type: application/json" \
@@ -87,7 +90,7 @@ curl -X POST http://localhost:8500/chat \
   }'
 
 # Run automated tests
-python test_llm.py
+./scripts/test_llm_viability.sh
 ```
 
 ---
@@ -166,11 +169,11 @@ python app.py
 
 ### CLI Demo
 ```bash
-# Run automated demo
-./demo_client_view.sh
+# Run complete system setup and testing
+./quickstart.sh
 
 # Make executable if needed
-chmod +x demo_client_view.sh
+chmod +x quickstart.sh scripts/*.sh
 ```
 
 ### Complete Test Flow
@@ -312,9 +315,16 @@ env | grep LLM
 
 ## File Locations
 
+### Utility Scripts
+- `quickstart.sh` - Complete setup and testing
+- `scripts/check_health.sh` - Health check all services
+- `scripts/load_sample_data.sh` - Load 15 sample movies
+- `scripts/reset_database.sh` - Clear all data
+- `scripts/test_llm_viability.sh` - Test LLM endpoints
+
 ### Configuration
 - `docker-compose.yml` - Service orchestration
-- `.env` - Environment variables
+- `.env` - Environment variables (optional)
 - `requirements.txt` - Python dependencies
 
 ### Dockerfiles
@@ -325,18 +335,16 @@ env | grep LLM
 ### Code
 - `Application_server/Application_server.py` - Main app server
 - `llm/llm_server.py` - LLM server with Qwen2.5
-- `main.py` - Raft node launcher
 - `raft/raft_node.py` - Raft implementation
+- `app.py` - Single-window GUI
+- `app_multi.py` - Multi-window GUI
 
-### Scripts
-- `start.sh` - Local start script
-- `check_health.sh` - Health check script
-- `test_llm.py` - LLM test suite
-
-### Documentation
-- `DOCKER.md` - Complete Docker guide
-- `LLM_TESTING.md` - LLM testing guide
-- `DOCKER_LLM_SETUP.md` - Setup summary
+### Documentation (in `docs/`)
+- `QUICKSTART.md` - 2-minute setup guide
+- `ARCHITECTURE.md` - System design
+- `DOCKER.md` - Docker deployment guide
+- `CLIENT_VIEW.md` - API reference and GUI
+- `QUICK_REFERENCE.md` - This file
 
 ---
 
@@ -408,7 +416,7 @@ Password: password123
 
 ### Complete Setup
 ```bash
-docker-compose up -d && sleep 10 && ./check_health.sh && python test_llm.py
+./quickstart.sh
 ```
 
 ### Test Everything
@@ -422,6 +430,16 @@ echo "All services OK!"
 ### View All Logs
 ```bash
 docker-compose logs -f --tail=50
+```
+
+### Load Sample Data
+```bash
+./scripts/load_sample_data.sh
+```
+
+### Clear All Data
+```bash
+./scripts/reset_database.sh --force
 ```
 
 ---

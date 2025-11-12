@@ -260,10 +260,8 @@ curl -X POST http://localhost:8500/chat \
 
 ```bash
 # Run comprehensive LLM tests
-python test_llm.py
+./scripts/test_llm_viability.sh
 ```
-
-📖 **For detailed LLM testing, see [LLM_TESTING.md](LLM_TESTING.md)**
 
 ---
 
@@ -626,16 +624,30 @@ docker system prune -a --volumes
 
 ---
 
+## 🔧 Utility Scripts
+
+All utility scripts are in the `scripts/` folder:
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| `quickstart.sh` | Complete setup with Raft & API tests | `./quickstart.sh` |
+| `check_health.sh` | Health check all services | `./scripts/check_health.sh` |
+| `load_sample_data.sh` | Load 15 sample movies | `./scripts/load_sample_data.sh` |
+| `reset_database.sh` | Clear all data | `./scripts/reset_database.sh --force` |
+| `test_llm_viability.sh` | Test LLM endpoints | `./scripts/test_llm_viability.sh` |
+
+---
+
 ## 🆘 Getting Help
 
 ### Check Service Health
 
 ```bash
 # Quick health check script
-./check_health.sh
+./scripts/check_health.sh
 ```
 
-Create `check_health.sh`:
+Create this script if missing:
 ```bash
 #!/bin/bash
 echo "Checking services..."

@@ -271,7 +271,8 @@ or
 {
   "token": "admin-auth-token",
   "movie": "Movie Name",
-  "city": "City Name"
+  "city": "City Name",
+  "seats": 100
 }
 ```
 
@@ -279,6 +280,61 @@ or
 ```json
 {
   "status": "success"
+}
+```
+
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "Unauthorized"
+}
+```
+
+#### 7. Clear Database (Admin Only)
+**Endpoint:** `POST /admin/clear_database`  
+**Purpose:** Clear all movies and bookings from database  
+**Authentication:** Required (admin token)  
+**Request Body:**
+```json
+{
+  "token": "admin-auth-token"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Database cleared"
+}
+```
+
+**Error Response (200):**
+```json
+{
+  "status": "failure",
+  "message": "Unauthorized"
+}
+```
+
+#### 8. Load Sample Data (Admin Only)
+**Endpoint:** `POST /admin/load_sample_data`  
+**Purpose:** Load 15 sample movies into database  
+**Authentication:** Required (admin token)  
+**Request Body:**
+```json
+{
+  "token": "admin-auth-token"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Sample data loaded",
+  "movies_added": 15
 }
 ```
 
@@ -391,6 +447,8 @@ or
 | `/data/{type}` | GET | 9000 | Yes (token) | Get movies/bookings |
 | `/business` | POST | 9000 | Yes (token) | Book tickets |
 | `/add_movie` | POST | 9000 | Yes (admin) | Add new movie |
+| `/admin/clear_database` | POST | 9000 | Yes (admin) | Clear all data |
+| `/admin/load_sample_data` | POST | 9000 | Yes (admin) | Load 15 sample movies |
 | `/status` | GET | 50051-50053 | No | Raft node status |
 | `/trigger-election` | POST | 50051-50053 | No | Force election |
 | `/health` | GET | 8500 | No | LLM server health |
@@ -500,20 +558,22 @@ curl -X POST http://localhost:9000/business \
 {"status":"success","booking_id":"<uuid>"}
 ```
 
-### Test 2: Automated Demo Script
+### Test 2: Automated Setup and Testing
 ```bash
-# Run the comprehensive demo
-./demo_client_view.sh
+# Run the comprehensive setup script
+./quickstart.sh
 ```
 
 This script automatically:
-1. ✅ Checks server health
-2. ✅ Registers a new user
-3. ✅ Logs in as client
-4. ✅ Adds movies as admin
-5. ✅ Views available movies
-6. ✅ Books tickets
-7. ✅ Displays results
+1. ✅ Checks prerequisites (Docker, Python, etc.)
+2. ✅ Cleans up previous instances
+3. ✅ Builds Docker images
+4. ✅ Starts all services
+5. ✅ Waits for initialization
+6. ✅ Runs health checks & Raft verification
+7. ✅ Loads sample data (optional)
+8. ✅ Tests basic functionality (login, movies API)
+9. ✅ Displays system ready with all URLs
 
 ### Test 3: GUI Application
 
@@ -554,10 +614,15 @@ python app.py
 - Should show success message
 - Booking appears in right panel
 
-**5. View Booking History:**
+**6. View Booking History:**
 - Right panel shows "My Bookings"
 - Displays: Booking ID | Movie | City | Seats
 - Click "Refresh Bookings" to reload
+
+**7. Admin Features (when logged in as admin):**
+- "Load Sample Movies" button - loads 15 test movies
+- "Clear Database" button - removes all movies and bookings
+- Both require confirmation
 
 **6. Refresh Data:**
 - Click "Refresh Movies" to reload movie list
@@ -737,14 +802,17 @@ curl -X POST http://localhost:9000/register \
 ### Issue: No Movies Displayed
 **Symptom:** Empty movie table
 ```bash
-# Add movies as admin first
+# Use the load sample data script
+./scripts/load_sample_data.sh
+
+# Or add movies manually as admin
 python -c "
 import requests
 resp = requests.post('http://localhost:9000/login', 
     json={'username':'admin','password':'123'})
 token = resp.json()['token']
 requests.post('http://localhost:9000/add_movie',
-    json={'token':token, 'movie':'Test Movie', 'city':'Delhi'})
+    json={'token':token, 'movie':'Test Movie', 'city':'Delhi', 'seats':100})
 "
 ```
 

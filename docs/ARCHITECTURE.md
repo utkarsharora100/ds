@@ -307,7 +307,7 @@ MAX_LENGTH=512
 
 ### 6. Data Layer (`llm/storage.py`)
 
-**Technology:** SQLite (in-memory)
+**Technology:** SQLite (persistent database)
 
 **Schema:**
 
@@ -316,10 +316,9 @@ MAX_LENGTH=512
 users (id, username, password_hash, created_at)
 sessions (token, user_id, created_at, expires_at)
 
--- Movies
-movies (id, title, language, format, duration)
-showtimes (id, movie_id, start_time, screen)
-seats (id, showtime_id, row, seat_number, price, available)
+-- Movies  
+movies (id, title, city, available_seats)
+bookings (id, user_id, movie_id, seats_booked, timestamp)
 ```
 
 **Functions:**
@@ -328,11 +327,15 @@ seats (id, showtime_id, row, seat_number, price, available)
 - `create_session()`: Generate session token
 - `get_user_by_token()`: Validate session
 - `logout()`: Invalidate session
+- `get_movies()`: Fetch all movies with seat info
+- `book_seats()`: Create booking and update seats
+- `update_movie_seats()`: Decrement available seats
 
 **Initialization:**
-- Auto-seeded with sample movies
-- Random showtimes and seat allocation
-- 5 movies × ~2 showtimes × 50 seats each
+- SQLite database with persistent storage
+- Admin can add movies with seat counts
+- Automatic seat decrement on booking
+- Prevents overbooking with validation
 
 ---
 
@@ -480,9 +483,9 @@ GUI                     Raft Node
 
 ### Current Limitations
 
-1. **In-Memory Storage:**
-   - Data lost on restart
-   - Limited by RAM
+1. **Database Storage:**
+   - SQLite (single-file database)
+   - Manual backup/restore needed
 
 2. **Single Application Server:**
    - No load balancing
@@ -495,8 +498,9 @@ GUI                     Raft Node
 ### Future Improvements
 
 1. **Persistent Storage:**
-   - PostgreSQL/MySQL
+   - PostgreSQL/MySQL for production
    - Distributed databases (Cassandra, MongoDB)
+   - Automated backups
 
 2. **Horizontal Scaling:**
    - Multiple application servers
@@ -601,21 +605,39 @@ GUI                     Raft Node
 
 - `test_raft.py`: Raft algorithm correctness
 - `test_booking.py`: Booking logic validation
+- `test_llm.py`: LLM server testing
+- `test_client_view.py`: Client interface tests
+- `test_complete_system.py`: Full integration tests
 
 ### Integration Tests
 
 - Client-server communication
 - Multi-node Raft consensus
 - Database operations
+- Seat tracking and validation
+
+### Automated Testing
+
+```bash
+# Complete system test
+./quickstart.sh
+
+# LLM viability test
+./scripts/test_llm_viability.sh
+
+# Run specific test
+python tests/test_complete_system.py
+```
 
 ### Load Tests
 
-- `client.py` with multiple concurrent instances
-- GUI simulation feature (5 concurrent bookings)
+- `app_multi.py` for concurrent client simulation
+- Multiple booking scenarios
+- Raft failover testing
 
 ### Manual Testing
 
-- GUI functionality
+- GUI functionality (app.py, app_multi.py)
 - Node failure scenarios
 - Leader election verification
 
@@ -664,8 +686,8 @@ docker-compose logs -f
 ### Development (Local)
 
 ```bash
-# Manual start (not recommended)
-python app.py
+# Using the comprehensive setup script
+./quickstart.sh
 ```
 
 **Note:** Docker deployment handles all service orchestration automatically.
@@ -673,6 +695,19 @@ python app.py
 ---
 
 ## Monitoring & Observability
+
+### Health Check Script
+
+```bash
+# Comprehensive health check
+./scripts/check_health.sh
+```
+
+This script checks:
+- Application server health
+- All 3 Raft nodes
+- LLM server status
+- Leader election status
 
 ### Metrics to Track
 
