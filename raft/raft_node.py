@@ -44,17 +44,31 @@ class RaftNode:
         self._register_routes()
 
     def _reset_timeout(self):
-        # Random election timeout between 5–8 seconds
-        return time.time() + random.uniform(5, 8)
+        # Random election timeout using configured constants
+        return time.time() + random.uniform(self.ELECTION_TIMEOUT_MIN, self.ELECTION_TIMEOUT_MAX)
 
     def _run(self):
-        """Background thread: handles elections and leadership."""
+        """
+        Background thread: monitors for leader heartbeats and starts election if timeout.
+        Only starts election if NO heartbeat received during timeout period.
+        """
         while self.running:
-            time.sleep(0.5)
-            now = time.time()
+            if self.state == "leader":
+                # Leaders don't run election timer
+                time.sleep(0.1)
+                continue
 
-            # If election timeout reached and not leader, start election
-            if now > self.election_timeout and self.state != "leader":
+            # Check periodically (every 100ms)
+            time.sleep(0.1)
+
+            # Check if heartbeat was received recently
+            with self.lock:
+                time_since_heartbeat = time.time() - self.last_heartbeat_time
+                timeout = random.uniform(self.ELECTION_TIMEOUT_MIN, self.ELECTION_TIMEOUT_MAX)
+
+            if time_since_heartbeat >= timeout:
+                # No heartbeat received - leader might be dead
+                print(f"[{self.node_id}] Election timeout: no heartbeat for {time_since_heartbeat:.2f}s")
                 self._start_election()
 
     def _start_election(self):
@@ -99,12 +113,96 @@ class RaftNode:
                 self.state = "leader"
                 self.leader_id = self.node_id
                 print(f"[{self.node_id}] 🏆 is the LEADER now (term {self.term}, votes {votes}/{total_nodes})")
+
+                # ✅ CRITICAL: Start heartbeat loop immediately
+                if hasattr(self, '_heartbeat_thread') and self._heartbeat_thread:
+                    # Cancel any existing heartbeat thread
+                    self._stop_heartbeat = True
+                    self._heartbeat_thread.join(timeout=1.0)
+
+                self._stop_heartbeat = False
+                self._heartbeat_thread = threading.Thread(target=self._send_heartbeats_loop, daemon=True)
+                self._heartbeat_thread.start()
+                print(f"[{self.node_id}] Started heartbeat loop")
             else:
                 self.state = "follower"
                 print(f"[{self.node_id}] ❌ Election failed (term {self.term}, votes {votes}/{total_nodes})")
 
             # Reset election timeout for next term
             self.election_timeout = self._reset_timeout()
+
+    def _step_down(self, new_term):
+        """
+        Step down from leader/candidate to follower due to higher term.
+        Stops heartbeat loop if running.
+        """
+        with self.lock:
+            old_state = self.state
+            self.state = "follower"
+            self.term = new_term
+            self.voted_for = None
+            self.leader_id = None
+            self.last_heartbeat_time = time.time()
+
+        # Stop heartbeat loop if we were leader
+        if old_state == "leader":
+            self._stop_heartbeat = True
+            if self._heartbeat_thread:
+                self._heartbeat_thread.join(timeout=1.0)
+            print(f"[{self.node_id}] Stepped down from leader to follower (term {new_term})")
+
+        elif old_state == "candidate":
+            print(f"[{self.node_id}] Stepped down from candidate to follower (term {new_term})")
+
+    def _send_heartbeats_loop(self):
+        """
+        Leader continuously sends heartbeats to all followers.
+        Sends empty AppendEntries every 50ms.
+        """
+        while self.state == "leader" and not self._stop_heartbeat:
+            try:
+                # Send heartbeat to each peer
+                for peer_id, peer_address in self.peers.items():
+                    try:
+                        # Convert service name format to HTTP URL if needed
+                        if not peer_address.startswith('http'):
+                            peer_url = f"http://{peer_address}"
+                        else:
+                            peer_url = peer_address
+
+                        response = httpx.post(
+                            f"{peer_url}/append-entries",
+                            json={
+                                "term": self.term,
+                                "leader_id": self.node_id,
+                                "entries": [],  # Empty = heartbeat
+                                "prev_log_index": len(self.log) - 1 if self.log else -1,
+                                "prev_log_term": self.log[-1].get("term", 0) if self.log else 0,
+                                "leader_commit": self.commit_index
+                            },
+                            timeout=0.1  # 100ms timeout
+                        )
+
+                        if response.status_code == 200:
+                            data = response.json()
+                            # Check if peer has higher term
+                            if data.get("term", 0) > self.term:
+                                print(f"[{self.node_id}] Peer {peer_id} has higher term {data['term']}, stepping down")
+                                self._step_down(data["term"])
+                                return
+
+                    except Exception:
+                        # Peer might be down, continue with others
+                        pass
+
+                # Sleep before next heartbeat
+                time.sleep(self.HEARTBEAT_INTERVAL)
+
+            except Exception as e:
+                print(f"[{self.node_id}] Heartbeat loop error: {e}")
+                break
+
+        print(f"[{self.node_id}] Stopped heartbeat loop")
 
     # ✅ NEW — FastAPI routes (status + simple manual endpoints)
     def _register_routes(self):
@@ -119,6 +217,41 @@ class RaftNode:
                 "peers": list(self.peers.keys())
             }
 
+        @self.app.post("/append-entries")
+        async def append_entries(request: Request):
+            """Handle heartbeats and log replication from leader"""
+            data = await request.json()
+            leader_term = data.get("term", 0)
+            leader_id = data.get("leader_id", "")
+            entries = data.get("entries", [])
+
+            with self.lock:
+                # Update term if higher
+                if leader_term > self.term:
+                    self.term = leader_term
+                    self.voted_for = None
+                    self.state = "follower"
+                    self.leader_id = leader_id
+
+                # Reject if term is outdated
+                if leader_term < self.term:
+                    return {"success": False, "term": self.term}
+
+                # ✅ CRITICAL: Reset election timer (received valid heartbeat)
+                self.last_heartbeat_time = time.time()
+                self.leader_id = leader_id
+
+                # If we were candidate, step down to follower
+                if self.state == "candidate":
+                    self.state = "follower"
+                    print(f"[{self.node_id}] Stepped down from candidate to follower (received heartbeat from {leader_id})")
+
+            # Only log non-empty heartbeats to reduce spam
+            if entries:
+                print(f"[{self.node_id}] Received AppendEntries from {leader_id} (term {leader_term}, {len(entries)} entries)")
+
+            return {"success": True, "term": self.term}
+
         @self.app.post("/request-vote")
         async def request_vote(request: Request):
             """Handle vote requests from other nodes during elections"""
@@ -127,22 +260,32 @@ class RaftNode:
             candidate_id = data.get("candidate_id", "")
 
             with self.lock:
-                # If candidate's term is higher, update our term and step down
+                # Update term if candidate has higher term
                 if candidate_term > self.term:
                     self.term = candidate_term
-                    self.state = "follower"
                     self.voted_for = None
-                    self.leader_id = None
+                    # ✅ Step down if we were leader/candidate
+                    if self.state in ["leader", "candidate"]:
+                        old_state = self.state
+                        self.state = "follower"
+                        if old_state == "leader":
+                            self._stop_heartbeat = True
+                            print(f"[{self.node_id}] Stepping down from leader due to higher term {candidate_term}")
 
-                # Grant vote if we haven't voted in this term, or already voted for this candidate
-                if candidate_term == self.term and (self.voted_for is None or self.voted_for == candidate_id):
+                # Reject if term is outdated
+                if candidate_term < self.term:
+                    print(f"[{self.node_id}] Rejected vote for {candidate_id} (stale term {candidate_term} < {self.term})")
+                    return {"vote_granted": False, "term": self.term}
+
+                # Grant vote if haven't voted yet OR already voted for this candidate
+                if self.voted_for is None or self.voted_for == candidate_id:
                     self.voted_for = candidate_id
-                    self.election_timeout = self._reset_timeout()  # Reset timeout when granting vote
+                    self.last_heartbeat_time = time.time()  # Reset timer (activity detected)
                     print(f"[{self.node_id}] ✓ Granted vote to {candidate_id} for term {candidate_term}")
-                    return {"term": self.term, "vote_granted": True}
+                    return {"vote_granted": True, "term": self.term}
                 else:
                     print(f"[{self.node_id}] ✗ Denied vote to {candidate_id} (already voted for {self.voted_for})")
-                    return {"term": self.term, "vote_granted": False}
+                    return {"vote_granted": False, "term": self.term}
 
         @self.app.post("/trigger-election")
         def manual_election():
