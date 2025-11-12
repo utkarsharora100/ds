@@ -352,30 +352,28 @@ class ClientWindow(ctk.CTk):
             width=150
         ).pack(side="left", padx=5)
         
-        # All Bookings Section
+        # My Bookings Section
         bookings_frame = ctk.CTkFrame(self)
         bookings_frame.pack(pady=5, padx=10, fill="both", expand=True)
         
         ctk.CTkLabel(
             bookings_frame,
-            text="📋 All Bookings",
+            text="📋 My Bookings",
             font=("Arial", 18, "bold")
         ).pack(pady=5)
         
         self.bookings_table = ttk.Treeview(
             bookings_frame,
-            columns=("user", "movie", "city", "seats"),
+            columns=("movie", "city", "seats"),
             show="headings",
             height=8
         )
-        self.bookings_table.heading("user", text="User")
         self.bookings_table.heading("movie", text="Movie")
         self.bookings_table.heading("city", text="City")
         self.bookings_table.heading("seats", text="Seats Booked")
         
-        self.bookings_table.column("user", width=120)
-        self.bookings_table.column("movie", width=200)
-        self.bookings_table.column("city", width=100)
+        self.bookings_table.column("movie", width=250)
+        self.bookings_table.column("city", width=120)
         self.bookings_table.column("seats", width=100)
         
         self.bookings_table.pack(fill="both", expand=True, pady=5, padx=10)
@@ -435,7 +433,7 @@ class ClientWindow(ctk.CTk):
             messagebox.showerror("Error", f"Booking error: {e}")
     
     def refresh_data(self):
-        """Refresh movies and personal bookings"""
+        """Refresh movies and personal bookings (only for current user)"""
         # Refresh movies
         for item in self.movies_table.get_children():
             self.movies_table.delete(item)
@@ -462,7 +460,7 @@ class ClientWindow(ctk.CTk):
         except Exception as e:
             print(f"[{self.username}] Error refreshing movies: {e}")
         
-        # Refresh ALL bookings
+        # Refresh MY bookings only
         for item in self.bookings_table.get_children():
             self.bookings_table.delete(item)
         
@@ -475,25 +473,28 @@ class ClientWindow(ctk.CTk):
             
             if resp.get("status") == "success":
                 bookings_data = resp.get("data", [])
+                my_bookings = []
                 
-                # Show all bookings with username
+                # Filter bookings for this user only
                 for booking in bookings_data:
                     booking_info = booking.get("data", {})
                     # Get username from booking data or context
-                    username = booking_info.get("user", booking.get("context", {}).get("username", "Unknown"))
+                    booking_username = booking_info.get("user", booking.get("context", {}).get("username", "Unknown"))
                     
-                    self.bookings_table.insert(
-                        "", "end",
-                        values=(
-                            username,
-                            booking_info.get("movie", "N/A"),
-                            booking_info.get("city", "N/A"),
-                            booking_info.get("seats", "N/A")
+                    # Only show bookings for the current user
+                    if booking_username == self.username:
+                        my_bookings.append(booking_info)
+                        self.bookings_table.insert(
+                            "", "end",
+                            values=(
+                                booking_info.get("movie", "N/A"),
+                                booking_info.get("city", "N/A"),
+                                booking_info.get("seats", "N/A")
+                            )
                         )
-                    )
                 
                 self.status_label.configure(
-                    text=f"🔄 {time.strftime('%H:%M:%S')} | Total Bookings: {len(bookings_data)}"
+                    text=f"🔄 {time.strftime('%H:%M:%S')} | My Bookings: {len(my_bookings)}"
                 )
         except Exception as e:
             print(f"[{self.username}] Error refreshing bookings: {e}")
@@ -542,7 +543,7 @@ if __name__ == "__main__":
     print("   → All 3 clients see movies instantly (Raft sync)")
     print("   → Clients book tickets independently")
     print("   → Seats decrement in real-time across all windows")
-    print("   → Each client sees ALL bookings with usernames")
+    print("   → Each client sees ONLY their own bookings")
     print("   → Admin sees ALL bookings from all users")
     print("\n✅ This showcases Raft consensus and data consistency!")
     print("=" * 80)
@@ -572,7 +573,7 @@ if __name__ == "__main__":
     print("   3. Alice: Book 15 seats")
     print("   4. Bob: Book 20 seats")
     print("   5. Watch seat count drop to 65 in ALL windows")
-    print("   6. Check 'All Bookings' - each user sees all bookings with usernames")
+    print("   6. Check 'My Bookings' - each user sees only their own bookings")
     print("   7. Admin: See ALL bookings from alice, bob, and charlie")
     print("\n🛑 Close any window to exit\n")
     
