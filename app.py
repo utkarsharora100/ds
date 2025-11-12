@@ -5,6 +5,7 @@ import threading
 import os, sys
 import random
 import uuid
+from invoke import run, UnexpectedExit
 from client.client import Client  # ✅ USING your client simulation
 import requests
 
@@ -23,16 +24,16 @@ class App(ctk.CTk):
         self.title("Distributed Movie Booking System")
         self.geometry("900x600")
 
-        # track external subprocesses for nodes
-        self.node_processes = {"node1": None, "node2": None, "node3": None}
-
-        # default user store
-        self.users = {"admin": "123"}
+    # default user store (username -> {password, role})
+    self.users = {"admin": {"password": "123", "role": "admin"}}
 
         # In-memory movie list
         self.movies = []
 
-        self.load_login()
+    # start docker-compose in background when app starts
+    threading.Thread(target=self._start_docker_compose, daemon=True).start()
+
+    self.load_login()
 
     # ----------------------------------------------------------------------------
     # REGISTRATION PAGE
@@ -52,10 +53,17 @@ class App(ctk.CTk):
         confirm_password = ctk.CTkEntry(frame, placeholder_text="Confirm Password", width=280, show="*")
         confirm_password.pack(pady=10)
 
+    # Role selection (standard/admin) - admin creation disabled via server-side
+    role_menu = ctk.CTkOptionMenu(frame, values=["standard", "admin"])
+    role_menu.set("standard")
+    role_menu.pack(pady=6)
+
         def register():
             user = username.get()
             pwd = password.get()
             cpwd = confirm_password.get()
+
+            role = role_menu.get()
 
             if not user or not pwd:
                 messagebox.showerror("Error", "Username and password cannot be empty")
@@ -68,17 +76,22 @@ class App(ctk.CTk):
             if user in self.users:
                 messagebox.showerror("Error", "Username already exists")
                 return
+
+            # prevent creating admin accounts from UI
+            if role == "admin":
+                messagebox.showerror("Error", "Creating an admin account is not allowed.")
+                return
             
             # Register via API
             try:
                 resp = requests.post(
                     "http://127.0.0.1:9000/register",
-                    json={"username": user, "password": pwd},
+                    json={"username": user, "password": pwd, "role": role},
                     timeout=5
                 ).json()
                 
                 if resp.get("status") == "success":
-                    self.users[user] = pwd
+                    self.users[user] = {"password": pwd, "role": role}
                     messagebox.showinfo("Success", "Registration successful! Please login.")
                     self.load_login()
                 else:
@@ -111,50 +124,21 @@ class App(ctk.CTk):
         ctk.CTkButton(frame, text="Register New Account", width=220,
                       command=self.load_register).pack(pady=5)
 
-        # ---------------- NODE CONTROLS ----------------
-        node_frame = ctk.CTkFrame(frame, corner_radius=15)
-        node_frame.pack(pady=30)
-
-        ctk.CTkLabel(node_frame, text="Start Raft Server Nodes", font=("Arial", 18)).grid(row=0, column=0, columnspan=3)
-
-        self.node1_indicator = ctk.CTkLabel(node_frame, text="🔴", font=("Arial", 20))
-        self.node2_indicator = ctk.CTkLabel(node_frame, text="🔴", font=("Arial", 20))
-        self.node3_indicator = ctk.CTkLabel(node_frame, text="🔴", font=("Arial", 20))
-
-        ctk.CTkButton(node_frame, text="Start Node 1", width=150,
-                      command=lambda: self.start_node("node1", self.node1_indicator)).grid(row=1, column=0, pady=5)
-        self.node1_indicator.grid(row=1, column=1)
-
-        ctk.CTkButton(node_frame, text="Start Node 2", width=150,
-                      command=lambda: self.start_node("node2", self.node2_indicator)).grid(row=2, column=0, pady=5)
-        self.node2_indicator.grid(row=2, column=1)
-
-        ctk.CTkButton(node_frame, text="Start Node 3", width=150,
-                      command=lambda: self.start_node("node3", self.node3_indicator)).grid(row=3, column=0, pady=5)
-        self.node3_indicator.grid(row=3, column=1)
+    # Node controls removed — docker compose will be started automatically on app start
 
     # ----------------------------------------------------------------------------
     # NODE STARTER
     # ----------------------------------------------------------------------------
     def start_node(self, node_name, indicator):
-
-        def launch():
-            script_path = os.path.join(PROJECT_ROOT, "main.py")
-            self.node_processes[node_name] = subprocess.Popen(
-                [sys.executable, script_path, node_name],
-                cwd=PROJECT_ROOT,
-                creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
-            )
-            self.after(100, lambda: indicator.configure(text="🟢"))
-
-        threading.Thread(target=launch).start()
+        # Removed: Node process launching is now handled via docker-compose started at app init
+        pass
 
     # ----------------------------------------------------------------------------
     # LOGIN LOGIC
     # ----------------------------------------------------------------------------
     def login(self, username, password):
-        if username in self.users and self.users[username] == password:
-            if username == "admin":
+        if username in self.users and self.users[username]["password"] == password:
+            if self.users[username].get("role") == "admin":
                 self.load_admin_dashboard()
             else:
                 self.load_user_dashboard(username)
@@ -394,7 +378,7 @@ class App(ctk.CTk):
         try:
             resp = requests.post(
                 "http://127.0.0.1:9000/login",
-                json={"username": username, "password": self.users.get(username, "")},
+                json={"username": username, "password": self.users.get(username, {}).get("password", "")},
                 timeout=5
             ).json()
             
@@ -607,6 +591,24 @@ class App(ctk.CTk):
     def clear(self):
         for widget in self.winfo_children():
             widget.destroy()
+
+    def _start_docker_compose(self):
+        """Start docker compose for the system in background using invoke.run
+        This runs `docker compose up -d` and logs the result. Non-blocking (called in a daemon thread).
+        """
+        try:
+            print("[APP] Starting docker compose (background)...")
+            result = run("docker compose up -d", hide=True, warn=True)
+            # invoke's Result may have .ok or .exited
+            exited = getattr(result, "exited", None)
+            if exited is None or exited == 0:
+                print("[APP] docker compose started successfully.")
+            else:
+                print(f"[APP] docker compose returned exit code: {exited}")
+        except UnexpectedExit as e:
+            print(f"[APP] Failed to start docker compose: {e}")
+        except Exception as e:
+            print(f"[APP] Error while starting docker compose: {e}")
 
 
 if __name__ == "__main__":

@@ -66,6 +66,16 @@ def create_in_memory_db():
         )
     ''')
 
+    # ---------------- RAFT LOGS TABLE ----------------
+    c.execute('''
+        CREATE TABLE raft_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            term INTEGER,
+            command TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # -------- Seed Sample Data (random movie + seats) ----------
     movie_titles = [
         ("Interstellar", "English", "IMAX", 169),
@@ -232,6 +242,44 @@ def update_movie_seats(conn, movie: str, city: str, seats_to_remove: int):
     except Exception as e:
         print(f"[DB ERROR] Failed to update seats: {e}")
         return False
+
+
+# ---------------- RAFT LOG HELPERS ----------------
+def append_log(conn, term: int, command: str):
+    """
+    Append a raft log entry to persistent storage.
+    """
+    try:
+        c = conn.cursor()
+        c.execute("INSERT INTO raft_logs (term, command) VALUES (?, ?)", (term, command))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"[DB ERROR] Failed to append raft log: {e}")
+        return False
+
+
+def get_all_logs(conn, limit: int = 1000):
+    """
+    Retrieve raft logs ordered by creation time (most recent last).
+    Returns a list of dicts: {id, term, command, created_at}
+    """
+    try:
+        c = conn.cursor()
+        c.execute("SELECT id, term, command, created_at FROM raft_logs ORDER BY id ASC LIMIT ?", (limit,))
+        rows = c.fetchall()
+        logs = []
+        for r in rows:
+            logs.append({
+                "id": r[0],
+                "term": r[1],
+                "command": r[2],
+                "created_at": r[3]
+            })
+        return logs
+    except Exception as e:
+        print(f"[DB ERROR] Failed to read raft logs: {e}")
+        return []
 
 
 # ---------------- LOCAL TESTING ----------------

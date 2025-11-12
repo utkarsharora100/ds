@@ -2,7 +2,13 @@ import random
 import time
 import threading
 from proto import raft_pb2, raft_pb2_grpc
-from llm.storage import append_log, get_all_logs
+from llm.storage import append_log, get_all_logs, create_in_memory_db
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from llm import storage
 
 class RaftNodeState:
     def __init__(self, node_id, peers, stub_dict):
@@ -22,6 +28,10 @@ class RaftNodeState:
 
         self.election_timeout = random.uniform(3, 5)
         self.last_heartbeat = time.time()
+        
+        # ✅ NEW: Initialize database on each RAFT node
+        self.db = create_in_memory_db()
+        print(f"[{node_id}] ✅ Database initialized on RAFT node")
 
         # Start background election thread
         threading.Thread(target=self.run_election_timer, daemon=True).start()
@@ -106,3 +116,40 @@ class RaftNodeState:
 
         print(f"[{self.node_id}] Log appended: {command}")
         return f"Command '{command}' committed (term {term})"
+    
+    # ✅ NEW: Database operation methods (forwarded to database on each node)
+    def add_movie(self, movie: str, city: str, seats: int = 50):
+        """Add a movie to the RAFT-hosted database."""
+        return storage.add_movie_to_db(self.db, movie, city, seats)
+    
+    def get_all_movies(self):
+        """Get all movies from the RAFT-hosted database."""
+        return storage.get_all_movies(self.db)
+    
+    def update_movie_seats(self, movie: str, city: str, seats: int):
+        """Update movie seats in the RAFT-hosted database."""
+        return storage.update_movie_seats(self.db, movie, city, seats)
+    
+    def create_user(self, username: str, password: str):
+        """Create a user in the RAFT-hosted database."""
+        return storage.create_user(self.db, username, password)
+    
+    def authenticate_user(self, username: str, password: str):
+        """Authenticate a user against the RAFT-hosted database."""
+        return storage.authenticate_user(self.db, username, password)
+    
+    def create_session(self, user_id: int):
+        """Create a session in the RAFT-hosted database."""
+        return storage.create_session(self.db, user_id)
+    
+    def get_user_by_token(self, token: str):
+        """Get user info by session token from the RAFT-hosted database."""
+        return storage.get_user_by_token(self.db, token)
+    
+    def logout(self, token: str):
+        """Logout a user from the RAFT-hosted database."""
+        return storage.logout(self.db, token)
+    
+    def get_all_logs(self):
+        """Get all RAFT logs from the database."""
+        return storage.get_all_logs(self.db)

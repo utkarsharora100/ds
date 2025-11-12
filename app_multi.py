@@ -6,6 +6,9 @@ Demonstrates Raft consistency by running 3 clients + 1 admin simultaneously
 import customtkinter as ctk
 from tkinter import messagebox, ttk
 import threading
+import subprocess
+import os
+import sys
 import time
 import requests
 import uuid
@@ -133,6 +136,18 @@ class AdminWindow(ctk.CTk):
         # Initial load
         self.refresh_data()
     
+        # --- Add simulate concurrent booking button ---
+        sim_btn_frame = ctk.CTkFrame(self)
+        sim_btn_frame.pack(pady=10)
+
+        # (helper moved to module-level)
+        ctk.CTkButton(
+            sim_btn_frame,
+            text="Simulate Concurrent Booking",
+            fg_color="#0078D7",
+            hover_color="#005A9E",
+            command=self.simulate_concurrent_booking
+        ).pack()
     def add_movie(self):
         """Add movie via API"""
         movie = self.movie_entry.get().strip()
@@ -241,9 +256,103 @@ class AdminWindow(ctk.CTk):
         
         threading.Thread(target=refresh_loop, daemon=True).start()
 
+    # ------------------ Simulation helpers ------------------
+    def _get_invoke_python(self):
+        venv_python = os.path.join(os.path.dirname(__file__), 'venv', 'Scripts', 'python.exe')
+        if os.path.exists(venv_python):
+            return venv_python
+        return sys.executable
+
+    def _run_invoke_task_bg(self, task_name):
+        """Run invoke <task_name> in background thread."""
+        def run():
+            py = self._get_invoke_python()
+            cmd = [py, '-m', 'invoke', task_name]
+            try:
+                proc = subprocess.run(cmd, cwd=os.path.dirname(__file__), capture_output=True, text=True)
+                print(f"[INVOKE:{task_name}] rc={proc.returncode}\n{proc.stdout}\n{proc.stderr}")
+            except Exception as e:
+                print(f"Failed to run invoke {task_name}: {e}")
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def simulate_concurrent_booking(self):
+        """Simulate many clients concurrently booking the same movie.
+        Creates mock users, logs them in, and posts booking requests concurrently using threads.
+        """
+        # Choose first movie if available
+        try:
+            resp = requests.get("http://127.0.0.1:9000/data/movies", params={"token": self.token}, timeout=5).json()
+            movies = resp.get('data', [])
+            if not movies:
+                messagebox.showwarning("No Movies", "No movies available to simulate booking.")
+                return
+            movie = movies[0]['data']['movie']
+            city = movies[0]['data']['city']
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to fetch movies: {e}")
+            return
+
+        # Number of mock users to create
+        N = 8
+        users = [(f"sim_user_{i+1}", f"pass{i+1}123") for i in range(N)]
+
+        results = []
+
+        def worker(username, password, out_list):
+            # Register (ignore failures)
+            try:
+                requests.post("http://127.0.0.1:9000/register", json={"username": username, "password": password}, timeout=5)
+            except:
+                pass
+
+            # Login
+            try:
+                r = requests.post("http://127.0.0.1:9000/login", json={"username": username, "password": password}, timeout=5).json()
+                token = r.get('token')
+            except Exception as e:
+                out_list.append((username, False, f"login error: {e}"))
+                return
+
+            if not token:
+                out_list.append((username, False, "no token"))
+                return
+
+            # Attempt booking
+            payload = {
+                "requestId": str(uuid.uuid4()),
+                "payload": {"type": "book_seat", "data": {"movie": movie, "city": city, "seats": 1}},
+                "context": {"token": token}
+            }
+            try:
+                b = requests.post("http://127.0.0.1:9000/business", json=payload, timeout=8).json()
+                if b.get('status') == 'success':
+                    out_list.append((username, True, b.get('booking_id') or b.get('booking', 'ok')))
+                else:
+                    out_list.append((username, False, b.get('message', 'failed')))
+            except Exception as e:
+                out_list.append((username, False, f"booking error: {e}"))
+
+        threads = []
+        for (u, p) in users:
+            t = threading.Thread(target=worker, args=(u, p, results))
+            t.start()
+            threads.append(t)
+
+        # Wait for threads
+        for t in threads:
+            t.join()
+
+        # Summarize results
+        success = [r for r in results if r[1]]
+        fail = [r for r in results if not r[1]]
+        msg = f"Sim complete — Success: {len(success)}, Fail: {len(fail)}\n"
+        msg += "\n".join([f"{r[0]} -> {r[2]}" for r in results])
+        messagebox.showinfo("Simulation Results", msg)
+
 
 # ----------------------------------------------------------------------------
-# CLIENT WINDOW
+# CLIENT WINDOW (FIXED)
 # ----------------------------------------------------------------------------
 class ClientWindow(ctk.CTk):
     def __init__(self, username, position_offset=0):
@@ -252,6 +361,9 @@ class ClientWindow(ctk.CTk):
         self.username = username
         self.token = None
         self.auto_refresh = True
+        
+        # --- FIX 1: Add instance variable to store selection data ---
+        self.selected_movie_data = None 
         
         # Position windows side by side
         x_pos = 900 + (position_offset * 650)
@@ -335,6 +447,9 @@ class ClientWindow(ctk.CTk):
         
         self.movies_table.pack(fill="both", expand=True, pady=5, padx=10)
         
+        # --- FIX 1: Bind the selection event to a helper function ---
+        self.movies_table.bind("<<TreeviewSelect>>", self.on_movie_select)
+
         # Booking controls
         booking_frame = ctk.CTkFrame(movies_frame)
         booking_frame.pack(fill="x", pady=5, padx=10)
@@ -391,15 +506,13 @@ class ClientWindow(ctk.CTk):
     
     def book_movie(self):
         """Book selected movie"""
-        selection = self.movies_table.selection()
         
-        if not selection:
+        # --- FIX 1: Read from the stored selection data, not the live table ---
+        if not self.selected_movie_data:
             messagebox.showwarning("No Selection", "Please select a movie")
             return
         
-        item = self.movies_table.item(selection[0])
-        movie = item["values"][0]
-        city = item["values"][1]
+        movie, city = self.selected_movie_data
         
         try:
             seats = int(self.seats_entry.get())
@@ -425,13 +538,85 @@ class ClientWindow(ctk.CTk):
             
             if resp.get("status") == "success":
                 print(f"[{self.username}] ✅ Booked {seats} seats for {movie}")
-                self.refresh_data()
+                # --- FIX 2: REMOVED the immediate call to self.refresh_data() ---
+                # Let the 2-second auto-refresh loop handle picking up the new booking.
+                # This gives the Raft backend time to commit the change.
+                # self.refresh_data() 
             else:
                 messagebox.showerror("Booking Failed", resp.get("message", "Unknown error"))
                 print(f"[{self.username}] ❌ Booking failed: {resp.get('message')}")
         except Exception as e:
             messagebox.showerror("Error", f"Booking error: {e}")
     
+    # --- FIX 1: Add the helper function to store selection ---
+    # --- FIX 1: (Modified) Only update selection, never clear it on deselect ---
+    def on_movie_select(self, event):
+        """
+        Callback to store selection data when a user clicks a row.
+        This prevents the auto-refresh from clearing the selection.
+        """
+        selection = self.movies_table.selection()
+        
+        # We ONLY update the data if there is a valid, new selection.
+        # We REMOVED the 'else' block that was setting it to None.
+        if selection:
+            try:
+                item = self.movies_table.item(selection[0])
+                # Store the data (movie and city) from the selected row
+                self.selected_movie_data = (item["values"][0], item["values"][1]) 
+            except Exception:
+                # This can happen if the refresh deletes the item just as we click
+                # Just ignore it and keep the old selection.
+                pass
+
+    # --- FIX 2: (Modified) Clear selection *after* successful booking ---
+    def book_movie(self):
+        """Book selected movie"""
+        
+        # Read from the stored selection data
+        if not self.selected_movie_data:
+            messagebox.showwarning("No Selection", "Please select a movie")
+            return
+        
+        movie, city = self.selected_movie_data
+        
+        try:
+            seats = int(self.seats_entry.get())
+        except:
+            messagebox.showerror("Error", "Invalid seat count")
+            return
+        
+        try:
+            payload = {
+                "requestId": str(uuid.uuid4()),
+                "payload": {
+                    "type": "book_seat",
+                    "data": {"movie": movie, "city": city, "seats": seats}
+                },
+                "context": {"token": self.token}
+            }
+            
+            resp = requests.post(
+                "http://127.0.0.1:9000/business",
+                json=payload,
+                timeout=5
+            ).json()
+            
+            if resp.get("status") == "success":
+                print(f"[{self.username}] ✅ Booked {seats} seats for {movie}")
+                
+                # --- THIS IS THE NEW LINE ---
+                # Booking was successful, so clear the selection
+                # to prevent accidental double-booking.
+                self.selected_movie_data = None
+                
+                # We still let the auto-refresh handle showing the new data
+            else:
+                messagebox.showerror("Booking Failed", resp.get("message", "Unknown error"))
+                print(f"[{self.username}] ❌ Booking failed: {resp.get('message')}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Booking error: {e}")
+
     def refresh_data(self):
         """Refresh movies and personal bookings"""
         # Refresh movies
@@ -526,6 +711,50 @@ def launch_client(username, position):
     app.mainloop()
 
 
+def ensure_qwen2_installed():
+    """Try to detect qwen2 (or qwen). If not available, attempt to install via pip.
+
+    This is a best-effort helper to reduce the chance that the LLM server fails
+    at startup due to a missing qwen tokenizer package. It will try to install
+    `qwen2` first, then fall back to `qwen`.
+    """
+    try:
+        import importlib.util
+        if importlib.util.find_spec("qwen2") or importlib.util.find_spec("qwen"):
+            print("[MAIN] qwen/qwen2 package already present")
+            return
+    except Exception:
+        pass
+
+    py = None
+    try:
+        # Attempt to reuse the same python executable that runs this script
+        py = sys.executable
+    except Exception:
+        py = None
+
+    if not py:
+        print("[MAIN] Could not determine Python executable for pip install")
+        return
+
+    for pkg in ("qwen2", "qwen"):
+        try:
+            print(f"[MAIN] Attempting to install '{pkg}' via pip...")
+            subprocess.run([py, "-m", "pip", "install", pkg], check=False)
+            # re-check
+            try:
+                import importlib.util
+                if importlib.util.find_spec(pkg):
+                    print(f"[MAIN] Successfully installed '{pkg}'")
+                    return
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[MAIN] pip install {pkg} failed: {e}")
+
+    print("[MAIN] qwen/qwen2 not detected or could not be installed automatically.")
+
+
 # ----------------------------------------------------------------------------
 # MAIN LAUNCHER
 # ----------------------------------------------------------------------------
@@ -550,6 +779,32 @@ if __name__ == "__main__":
     print("\n⏳ Starting windows in 2 seconds...\n")
     
     time.sleep(2)
+    # --- Start Docker Compose services (app server, raft nodes, llm) via invoke in background ---
+    def _get_invoke_python_main():
+        venv_python = os.path.join(os.path.dirname(__file__), 'venv', 'Scripts', 'python.exe')
+        if os.path.exists(venv_python):
+            return venv_python
+        return sys.executable
+
+    def _start_compose_all():
+        py = _get_invoke_python_main()
+        # Start app server, raft nodes and llm (equivalent to `invoke up`)
+        try:
+            print('[MAIN] Starting docker compose services via "docker compose up -d" (background)')
+            # Use exact command: docker compose up -d
+            subprocess.run(["docker", "compose", "up", "-d"], cwd=os.path.dirname(__file__), check=False)
+            print('[MAIN] docker compose up -d completed (check docker for container status)')
+        except Exception as e:
+            print(f'[MAIN] Failed to run docker compose up -d: {e}')
+
+    # Ensure qwen2 (or qwen) is installed if possible, then launch compose
+    try:
+        ensure_qwen2_installed()
+    except Exception as e:
+        print(f"[MAIN] ensure_qwen2_installed() raised an error: {e}")
+
+    # Launch compose startup in a daemon thread so UI can continue
+    threading.Thread(target=_start_compose_all, daemon=True).start()
     
     # Launch admin in separate process
     admin_process = multiprocessing.Process(target=launch_admin)

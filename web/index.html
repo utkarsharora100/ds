@@ -109,6 +109,38 @@
                 <button class="btn btn-primary" onclick="checkHealth()">Check System Health</button>
                 <div id="testResults" class="test-results"></div>
             </div>
+
+            <!-- Live Health Panel -->
+            <div class="card">
+                <h2>Live Cluster Health</h2>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="toggleLiveHealthBtn" class="btn btn-primary" onclick="toggleLiveHealth()">Start Live Health</button>
+                    <label style="font-size:0.9rem; color:#666;">Poll interval:</label>
+                    <input id="liveInterval" type="number" value="5" min="1" style="width:60px;"> <span style="color:#666;">s</span>
+                </div>
+                <div id="liveHealthPanel" style="margin-top:8px; display:block;">
+                    <div id="liveHealthSummary">No live health running.</div>
+                    <div id="liveHealthDetails" style="margin-top:8px; font-family:monospace; white-space:pre-wrap;"></div>
+                </div>
+            </div>
+
+            <!-- Raft Logs & Simulation -->
+            <div class="card">
+                <h2>Raft Logs & Client Simulation</h2>
+                <div style="margin-bottom:8px;">
+                    <label>Simulate clients:</label>
+                    <input type="number" id="simNumClients" value="10" min="1" style="width:80px; margin-left:8px;">
+                    <label style="margin-left:8px;">Movie:</label>
+                    <input type="text" id="simMovie" placeholder="Movie title" style="width:160px; margin-left:8px;">
+                    <label style="margin-left:8px;">Seats each:</label>
+                    <input type="number" id="simSeatsEach" value="1" min="1" style="width:60px; margin-left:8px;">
+                    <button class="btn btn-primary" onclick="simulateClients()" style="margin-left:8px;">Run Simulation</button>
+                </div>
+                <div style="margin-top:6px;">
+                    <button class="btn btn-secondary" onclick="refreshRaftLogs()">Refresh Raft Logs</button>
+                </div>
+                <pre id="raftLogs" style="height:200px; overflow:auto; background:#111; color:#e6e6e6; padding:8px; margin-top:8px;"></pre>
+            </div>
         </div>
     </div>
 

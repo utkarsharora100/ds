@@ -20,6 +20,9 @@ typing_extensions==4.15.0
 urllib3==2.5.0
 uvicorn==0.38.0
 
+# Dev tooling
+invoke
+
 # LLM dependencies (for llm-server only)
 torch==2.5.1
 transformers>=4.37.0

@@ -4,7 +4,8 @@ let authToken = null;
 let currentBooking = null;
 
 // API Base URL - Change this to your server IP when needed
-const API_BASE = 'http://127.0.0.1:9000';
+// Backend server is running on port 9100 in this session
+const API_BASE = 'http://127.0.0.1:9100';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -28,7 +29,9 @@ function showPage(pageId) {
 }
 
 function generateRequestId() {
-    return 'req-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    // Include username in the request id so bookings can be correlated to users
+    const userPrefix = currentUser ? currentUser : 'anon';
+    return `${userPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // ============================================================================
@@ -252,14 +255,16 @@ async function refreshAdminBookings() {
         if (data.status === 'success' && data.data.length > 0) {
             tbody.innerHTML = '';
             data.data.forEach(booking => {
-                const bookingData = booking.data;
+                // booking object format: {"id":..., "data": {"user":..., ...}}
+                const bookingId = booking.id || booking.requestId || '';
+                const bookingData = booking.data || {};
                 const row = tbody.insertRow();
                 row.innerHTML = `
-                    <td>${booking.requestId.substring(0, 8)}...</td>
-                    <td>${bookingData.username || 'N/A'}</td>
-                    <td>${bookingData.movie}</td>
-                    <td>${bookingData.city}</td>
-                    <td>${bookingData.seats}</td>
+                    <td>${(bookingId || '').toString().substring(0, 12)}...</td>
+                    <td>${bookingData.user || bookingData.username || 'N/A'}</td>
+                    <td>${bookingData.movie || ''}</td>
+                    <td>${bookingData.city || ''}</td>
+                    <td>${bookingData.seats || ''}</td>
                 `;
             });
         } else {
@@ -268,6 +273,55 @@ async function refreshAdminBookings() {
     } catch (error) {
         tbody.innerHTML = '<tr><td colspan="5" class="loading">Error loading bookings</td></tr>';
         console.error('Refresh admin bookings error:', error);
+    }
+}
+
+
+// ---------------------- RAFT LOGS & SIMULATION ----------------------
+async function refreshRaftLogs() {
+    const out = document.getElementById('raftLogs');
+    out.textContent = 'Loading raft logs...';
+    try {
+        const response = await fetch(`${API_BASE}/admin/raft_logs?token=${authToken}`);
+        const data = await response.json();
+        if (data.status === 'success') {
+            const logs = data.logs || [];
+            out.textContent = logs.map(l => `[${l.id}] term=${l.term} ${l.created_at} -> ${l.command}`).join('\n');
+        } else {
+            out.textContent = 'Failed to load raft logs';
+        }
+    } catch (err) {
+        out.textContent = `Error fetching raft logs: ${err.message}`;
+    }
+}
+
+async function simulateClients() {
+    const num = parseInt(document.getElementById('simNumClients').value || '10');
+    const movie = document.getElementById('simMovie').value || '';
+    const seats = parseInt(document.getElementById('simSeatsEach').value || '1');
+
+    if (!confirm(`Run simulation with ${num} clients booking ${seats} seats each for '${movie}'?`)) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/admin/simulate_clients`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: authToken, num_clients: num, movie: movie, seats_per_client: seats })
+        });
+        const data = await resp.json();
+        if (data.status === 'success') {
+            const s = data.summary || {};
+            showToast(`Simulation finished: ${s.success}/${s.total} succeeded`, 'info');
+            // refresh movies and bookings to reflect changes
+            refreshAdminMovies();
+            refreshAdminBookings();
+            refreshRaftLogs();
+        } else {
+            showToast(data.message || 'Simulation failed', 'error');
+        }
+    } catch (err) {
+        showToast('Could not contact server for simulation', 'error');
+        console.error('Simulate clients error:', err);
     }
 }
 
@@ -305,25 +359,78 @@ async function checkHealth() {
     const resultsDiv = document.getElementById('testResults');
     resultsDiv.textContent = 'Checking system health...\n\n';
     
-    const services = [
-        { name: 'App Server', url: `${API_BASE}/health` },
-        { name: 'LLM Server', url: 'http://127.0.0.1:8500/health' },
-        { name: 'Raft Node 1', url: 'http://127.0.0.1:50051/status' },
-        { name: 'Raft Node 2', url: 'http://127.0.0.1:50052/status' },
-        { name: 'Raft Node 3', url: 'http://127.0.0.1:50053/status' }
-    ];
-    
-    for (const service of services) {
-        try {
-            const response = await fetch(service.url);
-            const data = await response.json();
-            resultsDiv.textContent += `✓ ${service.name}: OK\n`;
-        } catch (error) {
-            resultsDiv.textContent += `❌ ${service.name}: FAILED\n`;
+    // Use server-side aggregated health endpoint to avoid CORS issues with raft nodes
+    try {
+        // admin-only endpoint requires token
+        const resp = await fetch(`${API_BASE}/admin/check_cluster_health?token=${authToken}`);
+        const data = await resp.json();
+        if (data.status === 'success') {
+            const services = data.services || {};
+            for (const [name, info] of Object.entries(services)) {
+                if (info.ok) {
+                    resultsDiv.textContent += `✓ ${name}: OK\n`;
+                } else {
+                    resultsDiv.textContent += `❌ ${name}: FAILED (${info.error || info.status_code || 'unknown'})\n`;
+                }
+            }
+        } else {
+            resultsDiv.textContent += '❌ Cluster health check failed on server\n';
         }
+    } catch (err) {
+        resultsDiv.textContent += `❌ Health check request failed: ${err.message}\n`;
     }
     
     showToast('Health check complete', 'info');
+}
+
+// ---------------- Live Health Polling ----------------
+let liveHealthIntervalId = null;
+
+function renderLiveHealth(data) {
+    const summaryEl = document.getElementById('liveHealthSummary');
+    const detailsEl = document.getElementById('liveHealthDetails');
+    if (!data || data.status !== 'success') {
+        summaryEl.textContent = 'Live health failed to fetch.';
+        detailsEl.textContent = JSON.stringify(data, null, 2);
+        return;
+    }
+    const services = data.services || {};
+    let okCount = 0, total = 0;
+    const lines = [];
+    for (const [name, info] of Object.entries(services)) {
+        total++;
+        if (info.ok) okCount++;
+        lines.push(`${name}: ${info.ok ? 'OK' : 'FAILED'} ${info.ok ? '' : ('(' + (info.error || info.status_code || '') + ')')}`);
+    }
+    summaryEl.textContent = `${okCount}/${total} services healthy`;
+    detailsEl.textContent = lines.join('\n');
+}
+
+async function fetchLiveHealth() {
+    try {
+        const resp = await fetch(`${API_BASE}/admin/check_cluster_health?token=${authToken}`);
+        const data = await resp.json();
+        renderLiveHealth(data);
+    } catch (err) {
+        renderLiveHealth({ status: 'error', error: err.message });
+    }
+}
+
+function toggleLiveHealth() {
+    const btn = document.getElementById('toggleLiveHealthBtn');
+    const intervalInput = document.getElementById('liveInterval');
+    if (!liveHealthIntervalId) {
+        const intervalSec = Math.max(1, parseInt(intervalInput.value || '5'));
+        fetchLiveHealth(); // immediate
+        liveHealthIntervalId = setInterval(fetchLiveHealth, intervalSec * 1000);
+        btn.textContent = 'Stop Live Health';
+    } else {
+        clearInterval(liveHealthIntervalId);
+        liveHealthIntervalId = null;
+        btn.textContent = 'Start Live Health';
+        document.getElementById('liveHealthSummary').textContent = 'No live health running.';
+        document.getElementById('liveHealthDetails').textContent = '';
+    }
 }
 
 // ============================================================================
@@ -373,16 +480,25 @@ async function refreshBookings() {
         const data = await response.json();
         
         if (data.status === 'success') {
-            if (data.data && data.data.length > 0) {
+            // Filter bookings client-side to ensure only this user's bookings are shown
+            const allBookings = data.data || [];
+            const visible = allBookings.filter(b => {
+                const bdata = b.data || {};
+                // booking stored user may be in bdata.user or bdata.username
+                return (bdata.user === currentUser) || (bdata.username === currentUser);
+            });
+
+            if (visible.length > 0) {
                 tbody.innerHTML = '';
-                data.data.forEach(booking => {
-                    const bookingData = booking.data;
+                visible.forEach(booking => {
+                    const bookingId = booking.id || booking.requestId || '';
+                    const bookingData = booking.data || {};
                     const row = tbody.insertRow();
                     row.innerHTML = `
-                        <td>${booking.requestId.substring(0, 8)}...</td>
-                        <td>${bookingData.movie}</td>
-                        <td>${bookingData.city}</td>
-                        <td>${bookingData.seats}</td>
+                        <td>${(bookingId || '').toString().substring(0, 12)}...</td>
+                        <td>${bookingData.movie || ''}</td>
+                        <td>${bookingData.city || ''}</td>
+                        <td>${bookingData.seats || ''}</td>
                     `;
                 });
             } else {

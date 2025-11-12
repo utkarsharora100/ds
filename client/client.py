@@ -51,8 +51,10 @@ class Client:
     # --------------------------------------------------------------------
     def book_seat(self, movie, city, seats=1):
         try:
+            # Include username in requestId so it can be correlated client-side if needed
+            req_id = f"{self.username}-{uuid.uuid4()}" if self.username else str(uuid.uuid4())
             payload = {
-                "requestId": str(uuid.uuid4()),
+                "requestId": req_id,
                 "payload": {
                     "type": "book_seat",
                     "data": {"movie": movie, "city": city, "seats": seats}
