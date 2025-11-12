@@ -1,153 +1,203 @@
 import threading
 import random
 import time
-
-# ✅ NEW
-from fastapi import FastAPI
 import uvicorn
 import sys
 import os
-from llm import storage
-import threading
-import requests
 import grpc
+from fastapi import FastAPI
 from concurrent import futures
 from proto import raft_pb2, raft_pb2_grpc
 
+# Add parent directory to path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from llm import storage
+
+# --- IMPORT THE RAFT LOGIC CORE ---
+from raft_state import RaftNodeState
+
 
 class RaftNode:
-    def __init__(self, node_id, peers):
+    def __init__(self, node_id, peers_map):
+        """
+        Initializes the Raft Node server.
+        
+        Args:
+            node_id (str): The ID of this node (e.g., "N1").
+            peers_map (dict): A map of all node IDs to their gRPC addresses.
+                              e.g., {"N1": "localhost:50051", "N2": ...}
+        """
         self.node_id = node_id
-        self.peers = peers  # dict of node_id -> address
-        self.state = "follower"
-        self.term = 0
-        self.voted_for = None
-        self.leader_id = None
-        self.running = True
+        self.peers_map = peers_map
+        self.my_grpc_addr = self.peers_map[self.node_id]
+        
+        # --- 1. Create gRPC stubs for all OTHER nodes ---
+        self.other_peer_addrs = []
+        self.stub_dict = {} # {address: stub}
+        for peer_id, peer_addr in self.peers_map.items():
+            if peer_id != self.node_id:
+                self.other_peer_addrs.append(peer_addr)
+                try:
+                    # Create a gRPC channel to the peer
+                    channel = grpc.insecure_channel(peer_addr)
+                    # Create a stub (client) for the RaftService
+                    self.stub_dict[peer_addr] = raft_pb2_grpc.RaftServiceStub(channel)
+                    print(f"[{self.node_id}] Created gRPC stub for {peer_id} at {peer_addr}")
+                except Exception as e:
+                    print(f"[{self.node_id}] FAILED to create gRPC stub for {peer_id}: {e}")
 
-        self.election_timeout = self._reset_timeout()
-        self.lock = threading.Lock()
-
-        # Start background thread for Raft timing
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-        # ✅ NEW — attach FastAPI app
+        # --- 2. Instantiate the Raft Logic Core ---
+        # This starts the election timers and state management
+        self.state = RaftNodeState(
+            node_id=self.node_id,
+            peers=self.other_peer_addrs,
+            stub_dict=self.stub_dict
+        )
+        
+        # --- 3. Set up FastAPI ---
+        # This is the HTTP server for the Application_server to talk to
         self.app = FastAPI()
-        # initialize DB on this raft node
-        # ensure parent path is importable
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-        self.db = storage.create_in_memory_db()
-        print(f"[{self.node_id}] ✅ Database initialized on RAFT node (FastAPI)")
         self._register_routes()
 
-        # Start gRPC server for RaftService (DB + raft RPCs)
-        self.grpc_port = int(os.environ.get(f"RAFT_PORT_{self.node_id}", 50051))
+        # --- 4. Start gRPC Server in a background thread ---
+        # This is the server for internal Raft-to-Raft communication
+        self.grpc_port = int(self.my_grpc_addr.split(':')[-1])
         threading.Thread(target=self._start_grpc_server, daemon=True).start()
 
-    def _reset_timeout(self):
-        # Random election timeout between 5–8 seconds
-        return time.time() + random.uniform(5, 8)
-
-    def _run(self):
-        """Background thread: handles elections and leadership."""
-        while self.running:
-            time.sleep(0.5)
-            now = time.time()
-
-            # If election timeout reached and not leader, start election
-            if now > self.election_timeout and self.state != "leader":
-                self._start_election()
-
-    def _start_election(self):
-        with self.lock:
-            self.term += 1
-            self.state = "candidate"
-            self.voted_for = self.node_id
-
-            # Simulate vote count
-            votes = 1  # self vote
-            total_nodes = len(self.peers) + 1
-            majority = total_nodes // 2 + 1
-
-            # Simulate random support
-            votes += random.randint(0, len(self.peers))
-
-            if votes >= majority:
-                self.state = "leader"
-                self.leader_id = self.node_id
-                print(f"[{self.node_id}] 🏆 is the LEADER now (term {self.term})")
-            else:
-                self.state = "follower"
-
-            # Reset election timeout for next term
-            self.election_timeout = self._reset_timeout()
-
-    # ✅ NEW — FastAPI routes (status + simple manual endpoints)
+    # ------------------------------------------------------------------
+    # FastAPI HTTP Routes (for app server)
+    # ------------------------------------------------------------------
     def _register_routes(self):
-
+        """
+        Register all FastAPI routes. These routes delegate
+        logic to the RaftNodeState instance (self.state).
+        """
+        
         @self.app.get("/status")
         def status():
-            return {
-                "node_id": self.node_id,
-                "state": self.state,
-                "term": self.term,
-                "leader_id": self.leader_id,
-                "peers": list(self.peers.keys())
-            }
+            # Read state directly from the RaftNodeState instance
+            # This endpoint is "smart": includes progress if leader
+            with self.state.lock:
+                is_leader = self.state.state == "leader"
+                resp = {
+                    "node_id": self.state.node_id,
+                    "state": self.state.state,
+                    "term": self.state.current_term,
+                    "leader_id": self.state.leader_id,
+                    "peers": self.state.peers,
+                    "is_leader": is_leader
+                }
+                # Include progress variables if this node is the leader
+                if is_leader:
+                    resp["next_index"] = self.state.next_index
+                    resp["match_index"] = self.state.match_index
+            return resp
 
         @self.app.post("/trigger-election")
         def manual_election():
-            self._start_election()
+            # Call the method on the RaftNodeState instance
+            threading.Thread(target=self.state.start_election, daemon=True).start()
             return {"message": "Election manually triggered."}
 
         # ---------------- DB endpoints ----------------
+
         @self.app.get("/movies")
         def get_movies():
+            """Get all movies (read-only, no replication needed)"""
             try:
-                movies = storage.get_all_movies(self.db)
+                # Delegate to the state's method
+                movies = self.state.get_all_movies()
                 return {"status": "success", "movies": movies}
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
         @self.app.post("/add_movie")
         def add_movie(payload: dict):
+            """Add a movie (replicated write operation)"""
             try:
+                # This is a replicated command
                 movie = payload.get("movie")
                 city = payload.get("city")
                 seats = int(payload.get("seats", 50))
-                ok = storage.add_movie_to_db(self.db, movie, city, seats)
-                return {"status": "success"} if ok else {"status": "failure", "message": "exists"}
+                
+                # Use the replicated command handler
+                result = self.state.handle_client_command("add_movie", 
+                     {"movie": movie, "city": city, "seats": seats})
+                
+                return result # Will be {"status": "success"} or {"status": "failure", ...}
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
         @self.app.post("/update_seats")
         def update_seats(payload: dict):
+            """Update seats (replicated write operation)"""
             try:
+                # This is a replicated command
                 movie = payload.get("movie")
                 city = payload.get("city")
-                seats = int(payload.get("seats", 1))
-                ok = storage.update_movie_seats(self.db, movie, city, seats)
-                return {"status": "success"} if ok else {"status": "failure", "message": "insufficient_or_missing"}
+                seats = int(payload.get("seats", 1)) # This is seats_to_book (e.g., 5)
+                
+                # Use the replicated command handler
+                # We store the *negative* number to decrement seats
+                result = self.state.handle_client_command("update_seats", 
+                     {"movie": movie, "city": city, "seats_to_book": -seats})
+
+                return result
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
+        # --- NEW BOOKING ENDPOINTS (FOR PERSISTENT BOOKINGS) ---
+        @self.app.post("/add_booking")
+        def add_booking(payload: dict):
+            """Adds a booking to the replicated log (write operation)"""
+            try:
+                # The payload is the entire booking entry
+                result = self.state.handle_client_command("add_booking", payload)
+                return result
+            except Exception as e:
+                return {"status": "failure", "message": str(e)}
+        
+        @self.app.get("/get_bookings")
+        def get_bookings():
+            """Gets all bookings from the local DB (read-only)"""
+            try:
+                bookings = self.state.get_all_bookings()
+                return {"status": "success", "bookings": bookings}
+            except Exception as e:
+                return {"status": "failure", "message": str(e)}
+        
+        @self.app.post("/clear_bookings")
+        def clear_bookings(payload: dict):
+            """Clears all bookings (replicated write operation)"""
+            try:
+                # TODO: Add token check logic here if needed
+                result = self.state.handle_client_command("clear_bookings", {})
+                return result
+            except Exception as e:
+                return {"status": "failure", "message": str(e)}
+        # --- END NEW ---
+
         @self.app.post("/create_user")
         def create_user(payload: dict):
+            """Create a new user (replicated write operation)"""
             try:
                 username = payload.get("username")
                 password = payload.get("password")
-                ok = storage.create_user(self.db, username, password)
-                return {"status": "success"} if ok else {"status": "failure", "message": "exists"}
+                # Use the replicated command handler
+                result = self.state.handle_client_command("create_user",
+                    {"username": username, "password": password})
+                return result
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
         @self.app.post("/authenticate")
         def authenticate(payload: dict):
+            """Authenticate a user (read-only)"""
             try:
                 username = payload.get("username")
                 password = payload.get("password")
-                user_id = storage.authenticate_user(self.db, username, password)
+                # Auth is a read-only operation, no need to replicate
+                user_id = self.state.authenticate_user(username, password)
                 if user_id:
                     return {"status": "success", "user_id": user_id}
                 return {"status": "failure", "message": "invalid_credentials"}
@@ -156,61 +206,75 @@ class RaftNode:
 
         @self.app.post("/create_session")
         def create_session(payload: dict):
+            """Create a session (read-only, local to node)"""
             try:
                 user_id = int(payload.get("user_id"))
-                token = storage.create_session(self.db, user_id)
+                # Sessions are read-only, no need to replicate
+                token = self.state.create_session(user_id)
                 return {"status": "success", "token": token}
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
         @self.app.get("/get_user_by_token")
         def get_user_by_token(token: str):
+            """Get user from token (read-only, local to node)"""
             try:
-                res = storage.get_user_by_token(self.db, token)
+                # Read-only, no replication
+                res = self.state.get_user_by_token(token)
                 if res:
                     return {"status": "success", "user_id": res[0], "username": res[1]}
                 return {"status": "failure", "message": "not_found"}
             except Exception as e:
-                return {"status": "failure", "message": str(e)}
+                return {"status":"failure", "message": str(e)}
 
         @self.app.post("/logout")
         def logout(payload: dict):
+            """Log out user (read-only, local to node)"""
             try:
                 token = payload.get("token")
-                ok = storage.logout(self.db, token)
+                # Read-only, no replication
+                ok = self.state.logout(token)
                 return {"status": "success"} if ok else {"status": "failure"}
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
         @self.app.get("/raft_logs")
         def raft_logs():
+            """Get all logs (read-only)"""
             try:
-                logs = storage.get_all_logs(self.db)
+                logs = self.state.get_all_logs()
                 return {"status": "success", "logs": logs}
             except Exception as e:
                 return {"status": "failure", "message": str(e)}
 
-    # ---------------- gRPC server & servicer ----------------
+    # ------------------------------------------------------------------
+    # gRPC Server (for internal Raft communication)
+    # ------------------------------------------------------------------
     class _RaftServicer(raft_pb2_grpc.RaftServiceServicer):
-        def __init__(self, node):
-            self.node = node
+        def __init__(self, node_state: RaftNodeState):
+            # Store a reference to the RaftNodeState instance
+            self.state = node_state
 
-        # Basic Raft RPCs (simplified / passthrough)
+        # --- Raft RPCs ---
+        # These are called by *other* nodes
+        
         def RequestVote(self, request, context):
-            # Simplified vote response (not full Raft implementation here)
-            return raft_pb2.RequestVoteResponse(term=self.node.term, vote_granted=True)
+            # Delegate to the state's handler
+            return self.state.handle_vote_request(request)
 
         def AppendEntries(self, request, context):
-            # Accept heartbeats
-            return raft_pb2.AppendEntriesResponse(term=self.node.term, success=True, match_index=0)
+            # Delegate to the state's handler
+            return self.state.handle_append_entries(request)
 
-        # ---------------- Database RPCs ----------------
+        # --- Database RPCs ---
+        # These are (currently) unused as we proxy via HTTP
+        
         def AddMovie(self, request, context):
-            ok = storage.add_movie_to_db(self.node.db, request.movie, request.city, request.seats)
+            ok = self.state.add_movie(request.movie, request.city, request.seats)
             return raft_pb2.AddMovieResponse(success=ok, message="" if ok else "exists")
 
         def GetMovies(self, request, context):
-            movies = storage.get_all_movies(self.node.db)
+            movies = self.state.get_all_movies()
             resp = raft_pb2.GetMoviesResponse()
             for m in movies:
                 mv = raft_pb2.Movie(title=m.get("movie"), city=m.get("city"), seats=int(m.get("seats") or 0))
@@ -218,40 +282,48 @@ class RaftNode:
             return resp
 
         def UpdateSeats(self, request, context):
-            ok = storage.update_movie_seats(self.node.db, request.movie, request.city, request.seats)
+            # Note: This expects a *negative* number for booking
+            ok = self.state.update_movie_seats(request.movie, request.city, request.seats)
             return raft_pb2.UpdateSeatsResponse(success=ok, message="" if ok else "insufficient_or_missing")
 
         def CreateUser(self, request, context):
-            ok = storage.create_user(self.node.db, request.username, request.password)
+            ok = self.state.create_user(request.username, request.password)
             return raft_pb2.CreateUserResponse(success=ok, message="" if ok else "exists")
 
         def AuthenticateUser(self, request, context):
-            user_id = storage.authenticate_user(self.node.db, request.username, request.password)
+            user_id = self.state.authenticate_user(request.username, request.password)
             return raft_pb2.AuthenticateUserResponse(user_id=user_id or 0, success=bool(user_id))
-
+        
         def CreateSession(self, request, context):
-            token = storage.create_session(self.node.db, request.user_id)
+            token = self.state.create_session(request.user_id)
             return raft_pb2.CreateSessionResponse(token=token)
 
         def GetUserByToken(self, request, context):
-            res = storage.get_user_by_token(self.node.db, request.token)
+            res = self.state.get_user_by_token(request.token)
             if res:
                 return raft_pb2.GetUserByTokenResponse(user_id=res[0], username=res[1], success=True)
             return raft_pb2.GetUserByTokenResponse(success=False)
 
         def Logout(self, request, context):
-            ok = storage.logout(self.node.db, request.token)
+            ok = self.state.logout(request.token)
             return raft_pb2.LogoutResponse(success=ok)
+        
 
     def _start_grpc_server(self):
+        """Starts the gRPC server in the background."""
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        raft_pb2_grpc.add_RaftServiceServicer_to_server(self._RaftServicer(self), server)
-        grpc_port = int(os.environ.get(f"RAFT_PORT_{self.node_id}", 50051))
-        server.add_insecure_port(f"0.0.0.0:{grpc_port}")
-        print(f"[{self.node_id}] ▶️ Starting gRPC RaftService on port {grpc_port}")
+        # Pass the RaftNodeState instance to the servicer
+        raft_pb2_grpc.add_RaftServiceServicer_to_server(self._RaftServicer(self.state), server)
+        
+        server.add_insecure_port(f"0.0.0.0:{self.grpc_port}")
+        print(f"[{self.node_id}] ▶️ Starting gRPC RaftService on port {self.grpc_port}")
         server.start()
         server.wait_for_termination()
 
-    # ✅ NEW — serve FastAPI
+    # ------------------------------------------------------------------
+    # Main serve method (to be called by launcher)
+    # ------------------------------------------------------------------
     def serve(self, port: int):
+        """Starts the FastAPI (Uvicorn) server."""
+        print(f"[{self.node_id}] ▶️ Starting FastAPI app server on http://0.0.0.0:{port}")
         uvicorn.run(self.app, host="0.0.0.0", port=port)

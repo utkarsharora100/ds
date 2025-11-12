@@ -136,18 +136,28 @@ class AdminWindow(ctk.CTk):
         # Initial load
         self.refresh_data()
     
-        # --- Add simulate concurrent booking button ---
+        # --- Add simulation and Raft buttons ---
         sim_btn_frame = ctk.CTkFrame(self)
         sim_btn_frame.pack(pady=10)
 
-        # (helper moved to module-level)
         ctk.CTkButton(
             sim_btn_frame,
             text="Simulate Concurrent Booking",
             fg_color="#0078D7",
             hover_color="#005A9E",
             command=self.simulate_concurrent_booking
-        ).pack()
+        ).pack(side="left", padx=5)
+
+        # --- THIS IS THE RAFT PROGRESS BUTTON ---
+        ctk.CTkButton(
+            sim_btn_frame,
+            text="Show Raft Progress",
+            fg_color="#008A00",
+            hover_color="#006400",
+            command=self.open_raft_progress_window
+        ).pack(side="left", padx=5)
+        # --- END BUTTON ---
+
     def add_movie(self):
         """Add movie via API"""
         movie = self.movie_entry.get().strip()
@@ -182,8 +192,10 @@ class AdminWindow(ctk.CTk):
                 self.seats_entry.insert(0, "100")
                 self.refresh_data()
             else:
+                messagebox.showerror("Error", f"Failed to add movie: {resp.get('message')}")
                 print(f"[ADMIN] ❌ Failed: {resp.get('message')}")
         except Exception as e:
+            messagebox.showerror("Error", f"Connection error: {e}")
             print(f"[ADMIN] Error adding movie: {e}")
     
     def refresh_data(self):
@@ -229,6 +241,7 @@ class AdminWindow(ctk.CTk):
             if resp.get("status") == "success":
                 bookings_data = resp.get("data", [])
                 for booking in bookings_data:
+                    # The booking structure is now the full entry
                     booking_info = booking.get("data", {})
                     # Extract username from context if available
                     username = booking.get("context", {}).get("username", "Unknown")
@@ -255,6 +268,18 @@ class AdminWindow(ctk.CTk):
                     break
         
         threading.Thread(target=refresh_loop, daemon=True).start()
+
+    # --- NEW METHOD FOR THE BUTTON ---
+    def open_raft_progress_window(self):
+        """Open or focus the Raft progress log window"""
+        # Check if window exists and hasn't been closed
+        if not hasattr(self, "progress_window") or not self.progress_window.winfo_exists():
+            self.progress_window = RaftProgressWindow(self)
+        
+        # Bring the window to the front
+        self.progress_window.deiconify()
+        self.progress_window.focus()
+    # --- END NEW ---
 
     # ------------------ Simulation helpers ------------------
     def _get_invoke_python(self):
@@ -287,8 +312,9 @@ class AdminWindow(ctk.CTk):
             if not movies:
                 messagebox.showwarning("No Movies", "No movies available to simulate booking.")
                 return
-            movie = movies[0]['data']['movie']
-            city = movies[0]['data']['city']
+            movie_data = movies[0]['data']
+            movie = movie_data['movie']
+            city = movie_data['city']
         except Exception as e:
             messagebox.showerror("Error", f"Failed to fetch movies: {e}")
             return
@@ -350,6 +376,139 @@ class AdminWindow(ctk.CTk):
         msg += "\n".join([f"{r[0]} -> {r[2]}" for r in results])
         messagebox.showinfo("Simulation Results", msg)
 
+# ----------------------------------------------------------------------------
+# RAFT PROGRESS LOG WINDOW (NEW)
+# ----------------------------------------------------------------------------
+class RaftProgressWindow(ctk.CTkToplevel):
+    def __init__(self, master):
+        super().__init__(master)
+        
+        self.title("Raft Leader Progress")
+        self.geometry("450x550+100+500") # Increased size
+        self.running = True
+        
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+        
+        # UI
+        self.status_frame = ctk.CTkFrame(self)
+        self.status_frame.pack(fill="x", pady=5, padx=10)
+        
+        ctk.CTkLabel(self.status_frame, text="Status:", font=("Arial", 14, "bold")).pack(side="left")
+        self.status_label = ctk.CTkLabel(self.status_frame, text="Connecting...", font=("Arial", 14))
+        self.status_label.pack(side="left", padx=5)
+        
+        # --- NEW: Text Log Area ---
+        ctk.CTkLabel(self, text="Raft Text Log", font=("Arial", 14, "bold")).pack(pady=(5, 0))
+        self.log_textbox = ctk.CTkTextbox(self, height=200, wrap="word")
+        self.log_textbox.pack(fill="x", padx=10, pady=(5, 10))
+        # --- END NEW ---
+
+        self.table_frame = ctk.CTkFrame(self)
+        self.table_frame.pack(pady=5, padx=10, fill="both", expand=True)
+
+        ctk.CTkLabel(self.table_frame, text="Replication Progress (Leader View)", font=("Arial", 14, "bold")).pack(pady=(5, 0))
+        
+        self.progress_table = ttk.Treeview(
+            self.table_frame,
+            columns=("peer", "next_index", "match_index"),
+            show="headings",
+            height=6
+        )
+        self.progress_table.heading("peer", text="Follower Peer")
+        self.progress_table.heading("next_index", text="Next Index")
+        self.progress_table.heading("match_index", text="Match Index")
+        
+        self.progress_table.column("peer", width=150, anchor="w")
+        self.progress_table.column("next_index", width=100, anchor="c")
+        self.progress_table.column("match_index", width=100, anchor="c")
+        
+        self.progress_table.pack(fill="both", expand=True)
+
+        # Start auto-refresh thread
+        self.refresh_thread = threading.Thread(target=self.refresh_loop, daemon=True)
+        self.refresh_thread.start()
+
+    def on_close(self):
+        """Handle window close event"""
+        self.running = False
+        self.destroy()
+
+    def refresh_loop(self):
+        """Background loop to poll for progress data"""
+        while self.running:
+            try:
+                # Schedule the refresh on the main UI thread
+                self.after(0, self.refresh_data)
+            except Exception:
+                # Window was closed
+                break
+            time.sleep(2) # Poll every 2 seconds
+
+    def refresh_data(self):
+        """Fetch and display Raft progress data"""
+        if not self.running:
+            return
+            
+        try:
+            # 1. Fetch Raft Status and Progress
+            resp = requests.get("http://127.0.0.1:9000/raft_progress", timeout=1).json()
+            
+            # 2. Fetch Text Log
+            log_resp = requests.get("http://127.0.0.1:9000/data/progress_log", timeout=1).json()
+
+            # --- Handle Text Log Display ---
+            if log_resp.get("status") == "success":
+                log_messages = log_resp.get("log", [])
+                self.log_textbox.delete("1.0", "end")
+                self.log_textbox.insert("end", "\n".join(log_messages))
+                self.log_textbox.see("end")
+            
+            # --- Handle Status and Table Display ---
+            if resp.get("status") == "success":
+                leader = resp.get("leader_id", "N/A")
+                
+                if resp.get("is_leader"):
+                    self.status_label.configure(text=f"Displaying progress for LEADER: {leader}", text_color="cyan")
+                    
+                    peers_addr_to_id = {
+                        "localhost:50051": "N1",
+                        "localhost:50052": "N2",
+                        "localhost:50053": "N3",
+                    }
+                    next_idx_data = resp.get("next_index", {})
+                    match_idx_data = resp.get("match_index", {})
+                    all_peer_addrs = set(next_idx_data.keys()) | set(match_idx_data.keys())
+
+                    # Clear old data
+                    for item in self.progress_table.get_children():
+                        self.progress_table.delete(item)
+                    
+                    # Insert new data
+                    for addr in sorted(all_peer_addrs):
+                        peer_name = peers_addr_to_id.get(addr, addr) 
+                        self.progress_table.insert(
+                            "", "end",
+                            values=(
+                                peer_name,
+                                next_idx_data.get(addr, "N/A"),
+                                match_idx_data.get(addr, "N/A")
+                            )
+                        )
+                
+                else: # Is Follower
+                    self.status_label.configure(text=f"This node is a follower. Leader is: {leader}", text_color="yellow")
+                    for item in self.progress_table.get_children():
+                        self.progress_table.delete(item)
+            
+            else:
+                self.status_label.configure(text="Failed to get Raft status.", text_color="orange")
+
+        except requests.exceptions.ConnectionError:
+            self.status_label.configure(text="Connecting to server...", text_color="gray")
+        except Exception as e:
+            print(f"RaftProgressWindow Error: {e}")
+            self.status_label.configure(text="Error loading progress data.", text_color="red")
+
 
 # ----------------------------------------------------------------------------
 # CLIENT WINDOW (FIXED)
@@ -377,6 +536,9 @@ class ClientWindow(ctk.CTk):
         
         # Build UI
         self.build_ui()
+        
+        # --- MODIFIED: Initial load moved here as requested. Runs inherently once. ---
+        self.refresh_data()
         
         # Start auto-refresh
         self.start_auto_refresh()
@@ -500,56 +662,9 @@ class ClientWindow(ctk.CTk):
             font=("Arial", 12)
         )
         self.status_label.pack(pady=5)
-        
-        # Initial load
-        self.refresh_data()
     
-    def book_movie(self):
-        """Book selected movie"""
-        
-        # --- FIX 1: Read from the stored selection data, not the live table ---
-        if not self.selected_movie_data:
-            messagebox.showwarning("No Selection", "Please select a movie")
-            return
-        
-        movie, city = self.selected_movie_data
-        
-        try:
-            seats = int(self.seats_entry.get())
-        except:
-            messagebox.showerror("Error", "Invalid seat count")
-            return
-        
-        try:
-            payload = {
-                "requestId": str(uuid.uuid4()),
-                "payload": {
-                    "type": "book_seat",
-                    "data": {"movie": movie, "city": city, "seats": seats}
-                },
-                "context": {"token": self.token}
-            }
-            
-            resp = requests.post(
-                "http://127.0.0.1:9000/business",
-                json=payload,
-                timeout=5
-            ).json()
-            
-            if resp.get("status") == "success":
-                print(f"[{self.username}] ✅ Booked {seats} seats for {movie}")
-                # --- FIX 2: REMOVED the immediate call to self.refresh_data() ---
-                # Let the 2-second auto-refresh loop handle picking up the new booking.
-                # This gives the Raft backend time to commit the change.
-                # self.refresh_data() 
-            else:
-                messagebox.showerror("Booking Failed", resp.get("message", "Unknown error"))
-                print(f"[{self.username}] ❌ Booking failed: {resp.get('message')}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Booking error: {e}")
-    
-    # --- FIX 1: Add the helper function to store selection ---
-    # --- FIX 1: (Modified) Only update selection, never clear it on deselect ---
+    # FIX 1: This function stores the selection and is designed to
+    # "keep" the last valid selection if a click happens during a refresh.
     def on_movie_select(self, event):
         """
         Callback to store selection data when a user clicks a row.
@@ -557,19 +672,23 @@ class ClientWindow(ctk.CTk):
         """
         selection = self.movies_table.selection()
         
-        # We ONLY update the data if there is a valid, new selection.
-        # We REMOVED the 'else' block that was setting it to None.
+        # If there is a new, valid selection
         if selection:
             try:
+                # Try to get the data for the new selection
                 item = self.movies_table.item(selection[0])
-                # Store the data (movie and city) from the selected row
                 self.selected_movie_data = (item["values"][0], item["values"][1]) 
             except Exception:
-                # This can happen if the refresh deletes the item just as we click
-                # Just ignore it and keep the old selection.
+                # This fails if a refresh is happening.
+                # We do NOTHING and 'pass', keeping the old valid selection.
                 pass
+        # We REMOVED the 'else' block, so a deselect (from a refresh)
+        # does NOT clear our stored selection.
+        
 
-    # --- FIX 2: (Modified) Clear selection *after* successful booking ---
+    # FIX 2: This function NO LONGER schedules its own refresh.
+    # It lets the main 2-second auto-refresh handle it,
+    # which prevents all race conditions.
     def book_movie(self):
         """Book selected movie"""
         
@@ -581,17 +700,21 @@ class ClientWindow(ctk.CTk):
         movie, city = self.selected_movie_data
         
         try:
-            seats = int(self.seats_entry.get())
+            seats_to_book = int(self.seats_entry.get())
         except:
             messagebox.showerror("Error", "Invalid seat count")
             return
         
+        if seats_to_book <= 0:
+             messagebox.showerror("Error", "Must book at least 1 seat")
+             return
+
         try:
             payload = {
                 "requestId": str(uuid.uuid4()),
                 "payload": {
                     "type": "book_seat",
-                    "data": {"movie": movie, "city": city, "seats": seats}
+                    "data": {"movie": movie, "city": city, "seats": seats_to_book}
                 },
                 "context": {"token": self.token}
             }
@@ -603,14 +726,14 @@ class ClientWindow(ctk.CTk):
             ).json()
             
             if resp.get("status") == "success":
-                print(f"[{self.username}] ✅ Booked {seats} seats for {movie}")
+                print(f"[{self.username}] ✅ Booked {seats_to_book} seats for {movie}")
                 
-                # --- THIS IS THE NEW LINE ---
                 # Booking was successful, so clear the selection
                 # to prevent accidental double-booking.
                 self.selected_movie_data = None
                 
-                # We still let the auto-refresh handle showing the new data
+                # --- !! THE 2-SECOND AUTO-REFRESH WILL PICK UP THE BOOKING !! ---
+                
             else:
                 messagebox.showerror("Booking Failed", resp.get("message", "Unknown error"))
                 print(f"[{self.username}] ❌ Booking failed: {resp.get('message')}")
@@ -774,8 +897,10 @@ if __name__ == "__main__":
     print("   → Seats decrement in real-time across all windows")
     print("   → Each client sees ONLY their own bookings")
     print("   → Admin sees ALL bookings from all users")
+    print("   → (NEW) Admin 'Show Raft Progress' button visualizes leader state")
     print("\n✅ This showcases Raft consensus and data consistency!")
     print("=" * 80)
+    
     print("\n⏳ Starting windows in 2 seconds...\n")
     
     time.sleep(2)
@@ -803,8 +928,11 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"[MAIN] ensure_qwen2_installed() raised an error: {e}")
 
-    # Launch compose startup in a daemon thread so UI can continue
+    # ---
+    # --- RESTORED this line as requested. ---
+    # --- This will restart your server, so bookings MUST be in Raft.
     threading.Thread(target=_start_compose_all, daemon=True).start()
+    # ---
     
     # Launch admin in separate process
     admin_process = multiprocessing.Process(target=launch_admin)
@@ -830,6 +958,7 @@ if __name__ == "__main__":
     print("   5. Watch seat count drop to 65 in ALL windows")
     print("   6. Check 'My Bookings' - each user sees only their bookings")
     print("   7. Admin: See ALL bookings from alice, bob, and charlie")
+    print("   8. Admin: Click 'Show Raft Progress' to see leader's log replication")
     print("\n🛑 Close any window to exit\n")
     
     # Wait for admin process to finish

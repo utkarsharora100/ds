@@ -66,6 +66,21 @@ A production-ready distributed movie ticket booking system featuring a **FastAPI
    ```
    *Note*: Desktop GUIs require X11/Wayland. For remote access, use SSH with X11 forwarding (`ssh -X`) or use the Web UI instead.
 
+## Update Changes
++Now all the raft nodes host database instead of application server
++added button to simulate multiple clients(create a script in script folder)
++Now raft nodes use grpc instead of http
+Issues
+-booking button doesn't work on client side
+Changes needed - 
+Add llm server functionality for faqs
+Add a health check in frontend to track raft logs
+Add login page at last(creates lo t of problems when debugging)
+
+
+Also run app_multi.py instead od app.py
+
+
 ## 🧪 Try It Out
 
 ### Test Login

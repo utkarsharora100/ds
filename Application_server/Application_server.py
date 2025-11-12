@@ -16,32 +16,29 @@ from llm import storage
 # ---------------------- APPLICATION SERVER ----------------------
 class ApplicationServer:
     def __init__(self, raft_leader_address: str = None):
-        # ✅ NEW: Initialize RAFT client stub for database operations
-        nodes = raft_leader_address or os.environ.get("RAFT_NODES", "http://127.0.0.1:50051,http://127.0.0.1:50052,http://127.0.0.1:50053")
+        
+        # --- FIXED: Point to the Raft HTTP/FastAPI ports (8001-8003) ---
+        nodes = os.environ.get("RAFT_HTTP_NODES", "http://127.0.0.1:8001,http://127.0.0.1:8002,http://127.0.0.1:8003")
         self.raft_nodes = [n.strip() for n in nodes.split(",") if n.strip()]
         
-        # For backward compatibility during development, still keep local sessions
-        # (Users/sessions stay in app server, database queries go to RAFT)
+        # This server only handles user sessions. All data is in Raft.
         self.users: Dict[str, str] = {
-            "admin": "123",     # default admin
-            "utkarsh": "password123"
+            "admin": "123",      # default admin
         }
         self.sessions: Dict[str, str] = {}  # token -> username
-        self.store = {
-            "bookings": [],
-            "documents": [],
-            "messages": [],
-        }
+        
+        # Bookings are now fetched directly from Raft
+        
         print("[SERVER] ✅ Application Server initialized.")
-        print(f"[SERVER] 🌐 RAFT nodes: {self.raft_nodes}")
+        print(f"[SERVER] 🌐 Raft HTTP nodes: {self.raft_nodes}")
     
-    def _connect_to_raft(self):
-        # kept for compatibility; no-op when using HTTP
-        return
-
     def _raft_request(self, path: str, method: str = 'get', json_payload: dict = None, params: dict = None):
-        """Call the first responsive RAFT node over HTTP. Returns response.json() or raises."""
+        """
+        Call the first responsive RAFT node over HTTP.
+        This will proxy requests to the FastAPI apps running on ports 8001-8003.
+        """
         last_err = None
+        # Try all nodes until one responds
         for base in self.raft_nodes:
             url = f"{base.rstrip('/')}/{path.lstrip('/')}"
             try:
@@ -49,40 +46,68 @@ class ApplicationServer:
                     r = requests.get(url, params=params, timeout=3)
                 else:
                     r = requests.post(url, json=(json_payload or {}), timeout=3)
-                r.raise_for_status()
-                return r.json()
-            except Exception as e:
+                
+                r.raise_for_status() # Raise exception for 4xx/5xx
+                return r.json() # Return successful JSON response
+            
+            except requests.exceptions.RequestException as e:
+                # This node is down or not the leader, try next one
                 last_err = e
                 continue
-        raise last_err if last_err is not None else RuntimeError('No RAFT nodes configured')
+                
+        # If all nodes failed
+        raise last_err if last_err is not None else RuntimeError('No RAFT nodes configured or reachable')
 
     # ---------------------- AUTH ----------------------
     def register_user(self, username: str, password: str) -> Dict[str, Any]:
         if username in self.users:
             return {"status": "failure", "message": "User already exists"}
-        self.users[username] = password
         
-        # ✅ NEW: Create user in RAFT-hosted database
+        # 1. Create in Raft DB
         try:
-            if self.raft_stub:
-                req = raft_pb2.CreateUserRequest(username=username, password=password)
-                resp = self.raft_stub.CreateUser(req)
-                if not resp.success:
-                    return {"status": "failure", "message": "Failed to create user in RAFT"}
+            resp = self._raft_request(
+                "create_user", 
+                "post", 
+                json_payload={"username": username, "password": password}
+            )
+            # Allow "exists" to be a soft success for simulation
+            if resp.get("status") != "success" and "exists" not in resp.get("message", ""):
+                 return {"status": "failure", "message": resp.get("message", "Failed to create user in Raft")}
         except Exception as e:
             print(f"[SERVER] ⚠️ Failed to create user in RAFT: {e}")
-            # Continue with local user creation for backward compatibility
+            return {"status": "failure", "message": f"Raft error: {e}"}
         
+        # 2. Create in local session store (if Raft succeeded)
+        self.users[username] = password
         print(f"[SERVER] New user created → {username}")
         return {"status": "success", "message": "User created"}
 
     def loginResponse(self, username: str, password: str) -> Dict[str, Any]:
-        if username not in self.users or self.users[username] != password:
+        # 1. Check local cache first (for admin)
+        if username in self.users and self.users[username] == password:
+             # Grant session
+            token = str(uuid.uuid4())
+            self.sessions[token] = username
+            print(f"[SERVER] 🔑 User '{username}' logged in (local). Token = {token}")
+            return {"status": "success", "token": token, "user": username}
+
+        # 2. Try to authenticate against Raft DB
+        try:
+            resp = self._raft_request(
+                "authenticate",
+                "post",
+                json_payload={"username": username, "password": password}
+            )
+            if resp.get("status") == "success" and resp.get("user_id"):
+                token = str(uuid.uuid4())
+                self.sessions[token] = username
+                print(f"[SERVER] 🔑 User '{username}' logged in (Raft). Token = {token}")
+                return {"status": "success", "token": token, "user": username}
+            else:
+                 return {"status": "failure", "message": "Invalid credentials"}
+        except Exception as e:
+            print(f"[SERVER] ⚠️ Failed to authenticate with RAFT: {e}")
             return {"status": "failure", "message": "Invalid credentials"}
-        token = str(uuid.uuid4())
-        self.sessions[token] = username
-        print(f"[SERVER] 🔑 User '{username}' logged in. Token = {token}")
-        return {"status": "success", "token": token, "user": username}
 
     # ---------------------- DATA GETTER ----------------------
     def getResponse(self, token: str, data_type: str) -> Dict[str, Any]:
@@ -91,43 +116,54 @@ class ApplicationServer:
         
         username = self.sessions[token]
         
-        # If requesting movies, fetch from RAFT database
+        # --- Get Movies (from Raft) ---
         if data_type == "movies":
             try:
-                if self.raft_stub:
-                    resp = self.raft_stub.GetMovies(raft_pb2.GetMoviesRequest())
+                resp = self._raft_request("movies", "get")
+                if resp.get("status") == "success":
                     # Convert RAFT response to match existing API response structure
                     formatted_movies = [
-                        {"id": idx + 1, "data": {"movie": m.title, "city": m.city, "seats": m.seats}}
-                        for idx, m in enumerate(resp.movies)
+                        {"id": idx + 1, "data": m} # m is already {"movie": ..., "city": ..., "seats": ...}
+                        for idx, m in enumerate(resp.get("movies", []))
                     ]
                     return {"status": "success", "data": formatted_movies}
                 else:
-                    return {"status": "failure", "message": "RAFT connection not available"}
+                    return {"status": "failure", "message": "Failed to fetch movies from Raft"}
             except Exception as e:
                 print(f"[SERVER] ⚠️ Failed to fetch movies from RAFT: {e}")
                 return {"status": "failure", "message": "Failed to fetch movies"}
         
-        # For bookings, only return bookings belonging to the requesting user (admins see all)
+        # --- Get Bookings (from Raft DB) ---
         if data_type == "bookings":
-            all_bookings = self.store.get("bookings", [])
-            # admins may view all bookings
-            if username == "admin":
-                return {"status": "success", "data": all_bookings}
-            # otherwise filter to bookings owned by this username
-            user_bookings = [b for b in all_bookings if b.get("data", {}).get("user") == username]
-            return {"status": "success", "data": user_bookings}
-        
-        # For other data types, use in-memory store
-        if data_type not in self.store:
-            return {"status": "failure", "message": "Invalid data type"}
-        return {"status": "success", "data": self.store[data_type]}
+            try:
+                resp = self._raft_request("get_bookings", "get")
+                if resp.get("status") != "success":
+                    return {"status": "failure", "message": "Failed to fetch bookings"}
+                
+                all_bookings = resp.get("bookings", [])
+                
+                # Admins see all bookings
+                if username == "admin":
+                    return {"status": "success", "data": all_bookings}
+                
+                # Users see only their own bookings
+                user_bookings = [
+                    b for b in all_bookings 
+                    if b.get("context", {}).get("username") == username
+                ]
+                return {"status": "success", "data": user_bookings}
+            except Exception as e:
+                print(f"[SERVER] ⚠️ Failed to fetch bookings from RAFT: {e}")
+                return {"status": "failure", "message": "Failed to fetch bookings"}
+
+        return {"status": "failure", "message": "Invalid data type"}
 
     # ---------------------- BUSINESS ----------------------
     def processBusinessRequest(self, requestId: str, payload: Dict[str, Any], context: Dict[str, Any]):
         token = context.get("token")
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
+        
         user = self.sessions[token]
         rtype = payload.get("type")
 
@@ -136,35 +172,52 @@ class ApplicationServer:
             city = payload["data"].get("city")
             seats = payload["data"].get("seats", 1)
             
-            # ✅ NEW: Try to decrement seats in RAFT database
+            # 1. Update seats in Raft
             try:
-                if self.raft_stub:
-                    req = raft_pb2.UpdateSeatsRequest(movie=movie, city=city, seats=seats)
-                    resp = self.raft_stub.UpdateSeats(req)
-                    if not resp.success:
-                        return {
-                            "status": "failure", 
-                            "message": "Insufficient seats or movie not found"
-                        }
-                else:
-                    return {"status": "failure", "message": "RAFT connection not available"}
+                resp = self._raft_request(
+                    "update_seats",
+                    "post",
+                    json_payload={"movie": movie, "city": city, "seats": seats}
+                )
+                if resp.get("status") != "success":
+                    return {
+                        "status": "failure", 
+                        "message": resp.get("message", "Insufficient seats or movie not found")
+                    }
             except Exception as e:
                 print(f"[SERVER] ⚠️ Failed to update seats in RAFT: {e}")
-                return {"status": "failure", "message": "Failed to book seats"}
+                return {"status": "failure", "message": f"Failed to book seats: {e}"}
             
-            # Create booking record (server-generated id includes username for easy correlation)
+            # 2. Create booking record (in Raft)
             booking_id = f"{user}-{uuid.uuid4()}"
             entry = {
                 "id": booking_id,
-                "data": {
-                    "user": user,
+                "data": { # This is the booking info
                     "movie": movie,
                     "city": city,
                     "seats": seats,
                     "timestamp": time.time()
+                },
+                "context": { # This contains the user info
+                    "token": token,
+                    "username": user
                 }
             }
-            self.store["bookings"].append(entry)
+            
+            try:
+                resp = self._raft_request(
+                    "add_booking",
+                    "post",
+                    json_payload=entry # Send the whole booking entry
+                )
+                if resp.get("status") != "success":
+                    # TODO: Should try to roll back the seat update
+                    return {"status": "failure", "message": "Failed to save booking record"}
+            except Exception as e:
+                 print(f"[SERVER] ⚠️ Failed to save booking to RAFT: {e}")
+                 # TODO: Should try to roll back the seat update
+                 return {"status": "failure", "message": f"Failed to save booking: {e}"}
+
             print(f"[SERVER] 🎟️ Booking created → {entry}")
             return {"status": "success", "booking_id": booking_id}
 
@@ -175,28 +228,27 @@ class ApplicationServer:
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
         
-        # ✅ NEW: Add movie to RAFT-hosted database
         try:
-            if self.raft_stub:
-                req = raft_pb2.AddMovieRequest(movie=movie, city=city, seats=seats)
-                resp = self.raft_stub.AddMovie(req)
-                if not resp.success:
-                    return {
-                        "status": "failure", 
-                        "message": resp.message or "Movie already exists in this city"
-                    }
+            resp = self._raft_request(
+                "add_movie",
+                "post",
+                json_payload={"movie": movie, "city": city, "seats": seats}
+            )
+            if resp.get("status") == "success":
+                print(f"[SERVER] 🍿 Movie added → {movie} ({city}) with {seats} seats")
+                return {"status": "success"}
             else:
-                return {"status": "failure", "message": "RAFT connection not available"}
+                return {
+                    "status": "failure", 
+                    "message": resp.get("message", "Movie already exists in this city")
+                }
         except Exception as e:
             print(f"[SERVER] ⚠️ Failed to add movie to RAFT: {e}")
-            return {"status": "failure", "message": "Failed to add movie"}
-        
-        print(f"[SERVER] 🍿 Movie added → {movie} ({city}) with {seats} seats")
-        return {"status": "success"}
+            return {"status": "failure", "message": f"Failed to add movie: {e}"}
     
     # ---------------------- ADMIN: DATABASE MANAGEMENT ----------------------
     def clear_database(self, token: str) -> Dict[str, Any]:
-        """Clear all movies from RAFT-hosted database."""
+        """Clear all bookings from RAFT-hosted database."""
         if token not in self.sessions:
             return {"status": "failure", "message": "Unauthorized"}
         
@@ -204,19 +256,18 @@ class ApplicationServer:
         if user != "admin":
             return {"status": "failure", "message": "Admin access required"}
         
-        # For now, we can't easily clear RAFT database from app server
-        # Instead, we clear local bookings
-        bookings_count = len(self.store["bookings"])
-        self.store["bookings"] = []
+        try:
+            resp = self._raft_request("clear_bookings", "post", json_payload={"token": token})
+            if resp.get("status") != "success":
+                return {"status": "failure", "message": "Failed to clear bookings in Raft"}
+        except Exception as e:
+            print(f"[SERVER] ⚠️ Failed to clear bookings in RAFT: {e}")
+            return {"status": "failure", "message": f"Raft error: {e}"}
         
-        print(f"[SERVER] 🗑️ Local data cleared by admin - {bookings_count} bookings removed")
+        print(f"[SERVER] 🗑️ Raft bookings cleared by admin")
         return {
             "status": "success",
-            "message": "Database cleared successfully",
-            "cleared": {
-                "bookings": bookings_count,
-                "movies": 0  # Movies are in RAFT
-            }
+            "message": "Raft bookings cleared successfully",
         }
     
     def load_sample_data(self, token: str) -> Dict[str, Any]:
@@ -247,26 +298,31 @@ class ApplicationServer:
         ]
         
         success_count = 0
+        errors = []
         try:
-            if self.raft_stub:
-                for movie, city, seats in sample_movies:
-                    req = raft_pb2.AddMovieRequest(movie=movie, city=city, seats=seats)
-                    resp = self.raft_stub.AddMovie(req)
-                    if resp.success:
-                        success_count += 1
-            else:
-                return {"status": "failure", "message": "RAFT connection not available"}
+            for movie, city, seats in sample_movies:
+                resp = self._raft_request(
+                    "add_movie",
+                    "post",
+                    json_payload={"movie": movie, "city": city, "seats": seats}
+                )
+                if resp.get("status") == "success":
+                    success_count += 1
+                else:
+                    # Ignore "exists" errors, but log others
+                    if "exists" not in resp.get("message", ""):
+                        errors.append(f"{movie} ({city}): {resp.get('message')}")
+
         except Exception as e:
             print(f"[SERVER] ⚠️ Failed to load sample data to RAFT: {e}")
-            return {"status": "failure", "message": "Failed to load sample data"}
+            return {"status": "failure", "message": f"Failed to load sample data: {e}"}
         
         print(f"[SERVER] 📦 Sample data loaded - {success_count}/{len(sample_movies)} movies")
         return {
             "status": "success",
             "message": "Sample data loaded successfully",
-            "loaded": {
-                "movies": success_count
-            }
+            "loaded": {"movies": success_count},
+            "errors": errors
         }
 
 
@@ -322,6 +378,31 @@ async def add_movie(req: Request):
     ))
 
 # ---------------------- NEW: ADMIN ENDPOINTS ----------------------
+
+# --- NEW: RAFT PROGRESS ENDPOINT ---
+@app.get("/raft_progress")
+async def raft_progress():
+    """
+    Fetches the status from one of the Raft nodes.
+    The _raft_request function will try nodes until one responds.
+    The responding node (if leader) will include its progress.
+    """
+    try:
+        # We just need to hit the /status endpoint.
+        # The raft_node.py /status endpoint is now smart:
+        # if it's the leader, it includes next_index and match_index.
+        resp = server._raft_request("status", "get")
+        
+        # The response from /status is already in the correct format
+        # e.g., {"is_leader": true, "next_index": ...}
+        return JSONResponse({"status": "success", **resp})
+    
+    except Exception as e:
+        print(f"[SERVER] ⚠️ Failed to get /raft_progress: {e}")
+        return JSONResponse({"status": "failure", "message": str(e)})
+# --- END NEW ---
+
+
 @app.post("/admin/clear_database")
 async def clear_database_endpoint(req: Request):
     """Admin endpoint to clear all movies and bookings"""
@@ -334,50 +415,8 @@ async def load_sample_data_endpoint(req: Request):
     """Admin endpoint to load sample movies for demonstration"""
     data = await req.json()
     token = data.get("token")
-    
-    if token not in server.sessions:
-        return JSONResponse({"status": "failure", "message": "Unauthorized"})
-    
-    user = server.sessions[token]
-    if user != "admin":
-        return JSONResponse({"status": "failure", "message": "Admin access required"})
-    
-    # Clear existing data
-    cursor = server.db.cursor()
-    cursor.execute("DELETE FROM movies")
-    server.db.commit()
-    server.store["bookings"] = []
-    
-    # Load sample movies
-    sample_movies = [
-        ("Inception", "New York", 120),
-        ("Inception", "Los Angeles", 100),
-        ("The Dark Knight", "New York", 150),
-        ("The Dark Knight", "Chicago", 80),
-        ("Interstellar", "San Francisco", 90),
-        ("Interstellar", "Boston", 110),
-        ("Avengers Endgame", "New York", 200),
-        ("Avengers Endgame", "Los Angeles", 180),
-        ("Spider-Man", "Chicago", 100),
-        ("Spider-Man", "Miami", 75),
-        ("Joker", "New York", 85),
-        ("Joker", "Seattle", 95),
-        ("Parasite", "San Francisco", 70),
-        ("Dune", "Los Angeles", 130),
-        ("Oppenheimer", "New York", 160)
-    ]
-    
-    for movie, city, seats in sample_movies:
-        storage.add_movie_to_db(server.db, movie, city, seats)
-    
-    print(f"[SERVER] 📦 Sample data loaded - {len(sample_movies)} movies")
-    return JSONResponse({
-        "status": "success",
-        "message": "Sample data loaded successfully",
-        "loaded": {
-            "movies": len(sample_movies)
-        }
-    })
+    # This function is now just a simple wrapper
+    return JSONResponse(server.load_sample_data(token))
 
 
 @app.get("/admin/raft_logs")
@@ -389,8 +428,11 @@ async def admin_raft_logs(token: str):
     if user != "admin":
         return JSONResponse({"status": "failure", "message": "Admin access required"})
 
-    logs = storage.get_all_logs(server.db)
-    return JSONResponse({"status": "success", "logs": logs})
+    try:
+        resp = server._raft_request("raft_logs", "get")
+        return JSONResponse(resp)
+    except Exception as e:
+         return JSONResponse({"status": "failure", "message": str(e)})
 
 
 @app.post("/admin/simulate_clients")
@@ -408,6 +450,7 @@ async def admin_simulate_clients(req: Request):
 
     num_clients = int(data.get("num_clients", 10))
     movie = data.get("movie")
+    city = data.get("city") # Allow specifying city
     seats_per_client = int(data.get("seats_per_client", 1))
 
     import threading
@@ -419,7 +462,14 @@ async def admin_simulate_clients(req: Request):
         # create temp user
         temp_user = f"sim_user_{int(time.time()*1000)}_{client_id}"
         temp_pass = "password"
-        server.register_user(temp_user, temp_pass)
+        
+        # We must use the public /register endpoint
+        register_resp = server.register_user(temp_user, temp_pass)
+        if register_resp.get("status") != "success" and "exists" not in register_resp.get("message", ""):
+             with results_lock:
+                results.append({"user": temp_user, "status": "register_failed"})
+             return
+
         login_res = server.loginResponse(temp_user, temp_pass)
         if login_res.get("status") != "success":
             with results_lock:
@@ -429,27 +479,37 @@ async def admin_simulate_clients(req: Request):
 
         payload = {
             "type": "book_seat",
-            "data": {"movie": movie, "city": None, "seats": seats_per_client}
+            "data": {"movie": movie, "city": city, "seats": seats_per_client}
         }
 
-        # Try to determine a city if not provided by picking first matching movie
         if not movie:
             with results_lock:
                 results.append({"user": temp_user, "status": "no_movie_specified"})
             return
 
-        # If movie exists in DB with cities, pick the first matching city
-        try:
-            # find a movie row with matching title
-            rows = server.db.cursor()
-            rows.execute("SELECT title, language FROM movies WHERE title = ?", (movie,))
-            r = rows.fetchone()
-            if r:
-                payload["data"]["city"] = r[1]
-        except Exception:
-            payload["data"]["city"] = None
+        # If city is not provided, try to find one
+        if not city:
+            try:
+                movies_resp = server.getResponse(client_token, "movies")
+                if movies_resp.get("status") == "success":
+                    for m_entry in movies_resp.get("data", []):
+                        m_data = m_entry.get("data", {})
+                        if m_data.get("movie") == movie:
+                            payload["data"]["city"] = m_data.get("city")
+                            break
+            except Exception:
+                pass # Will fail if no city is found
+        
+        if not payload["data"]["city"]:
+            with results_lock:
+                results.append({"user": temp_user, "status": "could_not_find_city"})
+            return
 
-        resp = server.processBusinessRequest(requestId=f"sim-{temp_user}", payload=payload, context={"token": client_token})
+        resp = server.processBusinessRequest(
+            requestId=f"sim-{temp_user}", 
+            payload=payload, 
+            context={"token": client_token}
+        )
         with results_lock:
             results.append({"user": temp_user, "result": resp})
 
@@ -471,29 +531,31 @@ async def admin_simulate_clients(req: Request):
 
 @app.get("/admin/check_cluster_health")
 async def admin_check_cluster_health(token: str):
-    """Proxy health check for services (app server, raft nodes, llm).
-    This endpoint requires an admin token and aggregates health checks so the browser doesn't need CORS access to raft nodes.
-    """
+    """Proxy health check for services (app server, raft nodes, llm)."""
     # Require admin token
     if token not in server.sessions:
         return JSONResponse({"status": "failure", "message": "Unauthorized"})
     if server.sessions[token] != "admin":
         return JSONResponse({"status": "failure", "message": "Admin access required"})
 
+    # --- THIS IS THE FIX ---
+    # The Raft HTTP servers are on 8001-8003.
+    # The gRPC servers are on 50051-50053.
+    # We must use the HTTP ports here.
     services = {
         "app_server": f"http://127.0.0.1:{os.environ.get('APP_PORT', '9000')}/health",
-        "llm": "http://127.0.0.1:8500/health",
-        "raft_node_1": "http://127.0.0.1:50051/status",
-        "raft_node_2": "http://127.0.0.1:50052/status",
-        "raft_node_3": "http://127.0.0.1:50053/status",
+        "llm": "http://1.2.3.4:8500/health", # Placeholder, update if needed
+        "raft_node_1": "http://127.0.0.1:8001/status",
+        "raft_node_2": "http://127.0.0.1:8002/status",
+        "raft_node_3": "http://127.0.0.1:8003/status",
     }
+    # --- END FIX ---
 
     results = {}
     for name, url in services.items():
         try:
             r = requests.get(url, timeout=2)
             if r.status_code == 200:
-                # try parse json
                 try:
                     results[name] = {"ok": True, "data": r.json()}
                 except Exception:
