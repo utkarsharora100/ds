@@ -1,6 +1,10 @@
-# 🐳 Combined Frontend + Backend Docker Setup
+# 🐳 Method 2: Combined Frontend + Backend Docker Setup
 
-This setup combines the frontend and backend into a single Docker container for easier deployment.
+**This is Method 2: Web UI + Combined Docker**
+
+This setup combines the frontend and backend into a single Docker container for easier deployment. The web frontend runs inside Docker and is accessible via browser.
+
+**For Desktop GUI setup, see [HOW_TO_RUN.md](HOW_TO_RUN.md) - Method 1.**
 
 ## ✅ What's Fixed
 

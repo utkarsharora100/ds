@@ -1,50 +1,113 @@
-# 🚀 Quick Reference - Docker & LLM Commands
+# 🚀 Quick Reference - Docker & Commands
+
+## 🎯 Two Usage Methods
+
+| Method | Docker File | Interface | Quick Start |
+|--------|-------------|-----------|-------------|
+| **Method 1** | `docker-compose.yml` | Desktop GUI | `docker compose up -d` then `python app.py` |
+| **Method 2** | `docker-compose.combined.yml` | Web UI | `docker compose -f docker-compose.combined.yml up -d` |
+
+---
 
 ## Docker Commands
 
-### Start & Stop
-```bash
-# Start all services
-docker-compose up -d
+### Method 1: Standard Docker (Desktop GUI)
 
-# Start without LLM (faster, less memory)
-docker-compose up -d app-server raft-node1 raft-node2 raft-node3
+**Start & Stop:**
+```bash
+# Start backend services
+docker compose up -d
+
+# Start without LLM
+docker compose up -d app-server raft-node1 raft-node2 raft-node3
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes
-docker-compose down -v
+docker compose down -v
 
 # Restart specific service
-docker-compose restart llm-server
+docker compose restart app-server
 ```
 
-### Logs & Monitoring
+**Logs & Monitoring:**
 ```bash
 # View all logs
-docker-compose logs -f
+docker compose logs -f
 
 # View specific service logs
-docker-compose logs -f llm-server
+docker compose logs -f app-server
 
 # Check service status
-docker-compose ps
+docker compose ps
+
+# Check resource usage
+docker stats
+```
+
+### Method 2: Combined Docker (Web UI)
+
+**Start & Stop:**
+```bash
+# Start all services (including web frontend)
+docker compose -f docker-compose.combined.yml up -d --build
+
+# Start without LLM
+docker compose -f docker-compose.combined.yml up -d movie-booking-app raft-node1 raft-node2 raft-node3
+
+# Stop all services
+docker compose -f docker-compose.combined.yml down
+
+# Stop and remove volumes
+docker compose -f docker-compose.combined.yml down -v
+
+# Restart specific service
+docker compose -f docker-compose.combined.yml restart movie-booking-app
+```
+
+**Logs & Monitoring:**
+```bash
+# View all logs
+docker compose -f docker-compose.combined.yml logs -f
+
+# View combined app logs (frontend + backend)
+docker compose -f docker-compose.combined.yml logs -f movie-booking-app
+
+# Check service status
+docker compose -f docker-compose.combined.yml ps
 
 # Check resource usage
 docker stats
 ```
 
 ### Troubleshooting
+
+**Method 1:**
 ```bash
 # Rebuild service
-docker-compose build llm-server
+docker compose build app-server --no-cache
 
-# Rebuild without cache
-docker-compose build --no-cache
+# Rebuild all without cache
+docker compose build --no-cache
 
 # Enter container shell
-docker-compose exec app-server bash
+docker compose exec app-server bash
+
+# Remove all stopped containers
+docker system prune -a
+```
+
+**Method 2:**
+```bash
+# Rebuild combined app
+docker compose -f docker-compose.combined.yml build --no-cache movie-booking-app
+
+# Rebuild all without cache
+docker compose -f docker-compose.combined.yml build --no-cache
+
+# Enter container shell
+docker compose -f docker-compose.combined.yml exec movie-booking-app bash
 
 # Remove all stopped containers
 docker system prune -a
@@ -54,12 +117,24 @@ docker system prune -a
 
 ### Health Checks
 
+**Method 1: Standard Docker**
 ```bash
 # Quick health check script
 ./scripts/check_health.sh
 
 # Manual health checks
 curl http://localhost:9000/health     # App Server
+curl http://localhost:50051/status    # Raft Node 1
+curl http://localhost:50052/status    # Raft Node 2
+curl http://localhost:50053/status    # Raft Node 3
+curl http://localhost:8500/health     # LLM Server
+```
+
+**Method 2: Combined Docker**
+```bash
+# Manual health checks
+curl http://localhost:9000/health     # App Server
+curl http://localhost:3000            # Web Frontend
 curl http://localhost:50051/status    # Raft Node 1
 curl http://localhost:50052/status    # Raft Node 2
 curl http://localhost:50053/status    # Raft Node 3

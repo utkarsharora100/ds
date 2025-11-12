@@ -18,80 +18,109 @@ cd /path/to/ds
 
 ---
 
-## 🚀 Method 1: Quick Start (Recommended)
+## 🎯 Two Usage Methods
 
-**Step 1: Make scripts executable (one-time, Linux/Mac)**
-```bash
-chmod +x quickstart.sh
-chmod +x scripts/*.sh
-```
+This system supports two Docker setups:
 
-**Step 2: Run the quickstart script**
-```bash
-./quickstart.sh
-```
-
-This script will:
-- Build all Docker images
-- Start all services
-- Run health checks
-- Display status
-
-*Note: First run takes ~10 minutes due to image builds and LLM model download (~1GB)*
+| Method | Docker File | Interface | Use Case |
+|--------|-------------|-----------|----------|
+| **Method 1** | `docker-compose.yml` | Desktop GUI (CustomTkinter) | Local development |
+| **Method 2** | `docker-compose.combined.yml` | Web UI (Browser) | Production, remote access |
 
 ---
 
-## 🛠️ Method 2: Manual Step-by-Step
+## 📱 Method 1: Standard Docker (for Desktop GUI)
 
-### Step 1: Build Docker Images
+### Quick Start
 
-Build all services:
 ```bash
-sudo docker compose build
+# Start backend services
+docker compose up -d --build
+
+# Then launch GUI locally
+pip install -r requirements-app.txt
+python app.py              # Single window
+python app_multi.py        # Multi window
 ```
 
-Or build individual services:
+---
+
+## 🌐 Method 2: Combined Docker (for Web UI)
+
+### Quick Start
+
 ```bash
-sudo docker compose build app-server
-sudo docker compose build raft-node1
-sudo docker compose build raft-node2
-sudo docker compose build raft-node3
-sudo docker compose build llm-server
+# Start all services including web frontend
+docker compose -f docker-compose.combined.yml up -d --build
+
+# Access at http://localhost:3000
 ```
 
-### Step 2: Start All Services
+---
 
-**Start all services in detached mode:**
+## 🛠️ Manual Step-by-Step (Both Methods)
+
+### Method 1: Standard Docker (Desktop GUI)
+
+**Step 1: Build Docker Images**
 ```bash
-sudo docker compose up -d
+docker compose build
 ```
 
-**Start with logs visible:**
+**Step 2: Start Backend Services**
 ```bash
-sudo docker compose up
+docker compose up -d
 ```
-(Press `Ctrl+C` to stop, but containers will keep running)
 
-**Start specific services only:**
+**Step 3: Launch Desktop GUI (locally)**
 ```bash
-# Without LLM (lower resource usage)
-sudo docker compose up -d app-server raft-node1 raft-node2 raft-node3
+pip install -r requirements-app.txt
+python app.py              # Single window
+python app_multi.py        # Multi window
+```
 
-# Only application server
-sudo docker compose up -d app-server
+### Method 2: Combined Docker (Web UI)
 
-# Only Raft nodes
-sudo docker compose up -d raft-node1 raft-node2 raft-node3
+**Step 1: Build Combined Image**
+```bash
+docker compose -f docker-compose.combined.yml build
+```
+
+**Step 2: Start All Services**
+```bash
+docker compose -f docker-compose.combined.yml up -d
+```
+
+**Step 3: Access Web UI**
+```
+Open browser: http://localhost:3000
+```
+
+### Start Specific Services Only
+
+**Method 1 (without LLM):**
+```bash
+docker compose up -d app-server raft-node1 raft-node2 raft-node3
+```
+
+**Method 2 (without LLM):**
+```bash
+docker compose -f docker-compose.combined.yml up -d movie-booking-app raft-node1 raft-node2 raft-node3
 ```
 
 ### Step 3: Verify Services Are Running
 
-**Check container status:**
+**Method 1: Check container status**
 ```bash
-sudo docker compose ps
+docker compose ps
 ```
 
-**Expected output:**
+**Method 2: Check container status**
+```bash
+docker compose -f docker-compose.combined.yml ps
+```
+
+**Expected output (Method 1):**
 ```
 NAME                STATUS          PORTS
 movie-app-server    Up X minutes     0.0.0.0:9000->9000/tcp
@@ -99,6 +128,16 @@ raft-node1          Up X minutes    0.0.0.0:50051->50051/tcp
 raft-node2          Up X minutes    0.0.0.0:50052->50052/tcp
 raft-node3          Up X minutes    0.0.0.0:50053->50053/tcp
 movie-llm-server    Up X minutes    0.0.0.0:8500->8500/tcp
+```
+
+**Expected output (Method 2):**
+```
+NAME                    STATUS          PORTS
+movie-booking-combined  Up X minutes    0.0.0.0:9000->9000/tcp, 0.0.0.0:3000->3000/tcp
+raft-node1              Up X minutes    0.0.0.0:50051->50051/tcp
+raft-node2              Up X minutes    0.0.0.0:50052->50052/tcp
+raft-node3              Up X minutes    0.0.0.0:50053->50053/tcp
+movie-llm-server        Up X minutes    0.0.0.0:8500->8500/tcp
 ```
 
 **Check resource usage:**
@@ -113,23 +152,30 @@ sudo docker stats
 
 ### Step 4: View Logs
 
-**View all logs:**
+**Method 1: View logs**
 ```bash
-sudo docker compose logs -f
+# View all logs
+docker compose logs -f
+
+# View specific service logs
+docker compose logs -f app-server
+docker compose logs -f raft-node1
+docker compose logs -f llm-server
+
+# View last 50 lines
+docker compose logs --tail=50 [service-name]
 ```
 
-**View specific service logs:**
+**Method 2: View logs**
 ```bash
-sudo docker compose logs -f app-server
-sudo docker compose logs -f raft-node1
-sudo docker compose logs -f raft-node2
-sudo docker compose logs -f raft-node3
-sudo docker compose logs -f llm-server
-```
+# View all logs
+docker compose -f docker-compose.combined.yml logs -f
 
-**View last 50 lines:**
-```bash
-sudo docker compose logs --tail=50 [service-name]
+# View combined app logs (frontend + backend)
+docker compose -f docker-compose.combined.yml logs -f movie-booking-app
+
+# View last 50 lines
+docker compose -f docker-compose.combined.yml logs --tail=50 movie-booking-app
 ```
 
 ---
@@ -148,7 +194,16 @@ curl -X POST http://localhost:9000/login \
   -d '{"username":"admin","password":"123"}'
 ```
 
-### Step 2: Test Raft Nodes (Ports 50051-50053)
+### Step 2: Test Frontend (Method 2 Only)
+
+```bash
+# Check web frontend
+curl http://localhost:3000
+
+# Or open in browser: http://localhost:3000
+```
+
+### Step 3: Test Raft Nodes (Ports 50051-50053)
 
 ```bash
 # Check node 1 status
@@ -168,7 +223,7 @@ for PORT in 50051 50052 50053; do
 done
 ```
 
-### Step 3: Test LLM Server (Port 8500)
+### Step 4: Test LLM Server (Port 8500)
 
 ```bash
 # Health check
@@ -184,91 +239,137 @@ curl -X POST http://localhost:8500/ask \
 
 ## 🛑 Stopping Services
 
-### Stop All Services
+### Method 1: Standard Docker
+
 ```bash
-sudo docker compose down
+# Stop all services
+docker compose down
+
+# Stop specific service
+docker compose stop app-server
+docker compose stop llm-server
+
+# Stop and remove containers (keeps images)
+docker compose down
+
+# Stop and remove everything (containers + volumes)
+docker compose down -v
 ```
 
-### Stop Specific Service
-```bash
-sudo docker compose stop app-server
-sudo docker compose stop llm-server
-```
+### Method 2: Combined Docker
 
-### Stop and Remove Containers (keeps images)
 ```bash
-sudo docker compose down
-```
+# Stop all services
+docker compose -f docker-compose.combined.yml down
 
-### Stop and Remove Everything (containers + volumes)
-```bash
-sudo docker compose down -v
+# Stop specific service
+docker compose -f docker-compose.combined.yml stop movie-booking-app
+
+# Stop and remove containers (keeps images)
+docker compose -f docker-compose.combined.yml down
+
+# Stop and remove everything (containers + volumes)
+docker compose -f docker-compose.combined.yml down -v
 ```
 
 ---
 
 ## 🔄 Restarting Services
 
-### Restart All Services
+### Method 1: Standard Docker
+
 ```bash
-sudo docker compose restart
+# Restart all services
+docker compose restart
+
+# Restart specific service
+docker compose restart app-server
+docker compose restart raft-node1
+
+# Rebuild and restart (after code changes)
+docker compose build app-server --no-cache
+docker compose up -d app-server
 ```
 
-### Restart Specific Service
-```bash
-sudo docker compose restart app-server
-sudo docker compose restart raft-node1
-sudo docker compose restart llm-server
-```
+### Method 2: Combined Docker
 
-### Rebuild and Restart (after code changes)
 ```bash
-sudo docker compose build app-server
-sudo docker compose up -d app-server
+# Restart all services
+docker compose -f docker-compose.combined.yml restart
+
+# Restart specific service
+docker compose -f docker-compose.combined.yml restart movie-booking-app
+
+# Rebuild and restart (after code changes)
+docker compose -f docker-compose.combined.yml build --no-cache movie-booking-app
+docker compose -f docker-compose.combined.yml up -d movie-booking-app
 ```
 
 ---
 
 ## 🧹 Cleanup Commands
 
-### Remove All Containers and Volumes
+### Method 1: Standard Docker
+
 ```bash
-sudo docker compose down -v
+# Remove all containers and volumes
+docker compose down -v
+
+# Remove all images
+docker compose down --rmi all
+
+# Complete cleanup (containers + volumes + images)
+docker compose down -v --rmi all
 ```
 
-### Remove All Images
-```bash
-sudo docker compose down --rmi all
-```
+### Method 2: Combined Docker
 
-### Complete Cleanup (containers + volumes + images)
 ```bash
-sudo docker compose down -v --rmi all
+# Remove all containers and volumes
+docker compose -f docker-compose.combined.yml down -v
+
+# Remove all images
+docker compose -f docker-compose.combined.yml down --rmi all
+
+# Complete cleanup (containers + volumes + images)
+docker compose -f docker-compose.combined.yml down -v --rmi all
 ```
 
 ### System Prune (removes unused Docker resources)
 ```bash
-sudo docker system prune -a
+docker system prune -a
 ```
 
 ---
 
 ## 🔧 Troubleshooting Commands
 
-### Check Service Status
+### Method 1: Standard Docker
+
 ```bash
-sudo docker compose ps
+# Check service status
+docker compose ps
+
+# View recent logs
+docker compose logs --tail=50 [service-name]
+
+# Rebuild without cache
+docker compose build --no-cache [service-name]
+docker compose up -d [service-name]
 ```
 
-### View Recent Logs
-```bash
-sudo docker compose logs --tail=50 [service-name]
-```
+### Method 2: Combined Docker
 
-### Rebuild Without Cache
 ```bash
-sudo docker compose build --no-cache [service-name]
-sudo docker compose up -d [service-name]
+# Check service status
+docker compose -f docker-compose.combined.yml ps
+
+# View recent logs
+docker compose -f docker-compose.combined.yml logs --tail=50 movie-booking-app
+
+# Rebuild without cache
+docker compose -f docker-compose.combined.yml build --no-cache movie-booking-app
+docker compose -f docker-compose.combined.yml up -d movie-booking-app
 ```
 
 ### Check Port Usage
@@ -311,59 +412,109 @@ sudo systemctl restart docker
 
 ## 🎯 Common Workflows
 
-### First Time Setup
+### Method 1: First Time Setup (Desktop GUI)
+
 ```bash
 # 1. Build images
-sudo docker compose build
+docker compose build
 
-# 2. Start services
-sudo docker compose up -d
+# 2. Start backend services
+docker compose up -d
 
-# 3. Wait for services to be ready (especially LLM - takes 30-60s)
+# 3. Install GUI dependencies
+pip install -r requirements-app.txt
+
+# 4. Launch GUI
+python app.py              # Single window
+python app_multi.py        # Multi window
+
+# 5. Check status
+docker compose ps
+```
+
+### Method 2: First Time Setup (Web UI)
+
+```bash
+# 1. Build images
+docker compose -f docker-compose.combined.yml build
+
+# 2. Start all services
+docker compose -f docker-compose.combined.yml up -d
+
+# 3. Wait for services (especially LLM - takes 30-60s)
 sleep 10
 
 # 4. Check status
-sudo docker compose ps
-./scripts/check_health.sh
+docker compose -f docker-compose.combined.yml ps
+
+# 5. Access web UI
+# Open browser: http://localhost:3000
 ```
 
 ### After Code Changes
+
+**Method 1:**
 ```bash
-# 1. Rebuild the changed service
-sudo docker compose build app-server
+# Rebuild and restart backend
+docker compose build app-server --no-cache
+docker compose up -d app-server
 
-# 2. Restart the service
-sudo docker compose up -d app-server
+# Check logs
+docker compose logs -f app-server
+```
 
-# 3. Check logs
-sudo docker compose logs -f app-server
+**Method 2:**
+```bash
+# Rebuild and restart combined app
+docker compose -f docker-compose.combined.yml build --no-cache movie-booking-app
+docker compose -f docker-compose.combined.yml up -d movie-booking-app
+
+# Check logs
+docker compose -f docker-compose.combined.yml logs -f movie-booking-app
 ```
 
 ### Daily Development
-```bash
-# Start services
-sudo docker compose up -d
 
-# View logs in real-time
-sudo docker compose logs -f
+**Method 1:**
+```bash
+# Start backend
+docker compose up -d
+
+# Launch GUI
+python app.py
 
 # Stop when done
-sudo docker compose down
+docker compose down
+```
+
+**Method 2:**
+```bash
+# Start everything
+docker compose -f docker-compose.combined.yml up -d
+
+# Access at http://localhost:3000
+
+# Stop when done
+docker compose -f docker-compose.combined.yml down
 ```
 
 ### Production Deployment
+
+**Method 1:**
 ```bash
-# 1. Pull latest code
 git pull
-
-# 2. Rebuild all images
-sudo docker compose build
-
-# 3. Restart services
-sudo docker compose up -d
-
-# 4. Verify health
+docker compose build
+docker compose up -d
 ./scripts/check_health.sh
+```
+
+**Method 2:**
+```bash
+git pull
+docker compose -f docker-compose.combined.yml build
+docker compose -f docker-compose.combined.yml up -d
+curl http://localhost:9000/health
+curl http://localhost:3000
 ```
 
 ---
@@ -372,24 +523,40 @@ sudo docker compose up -d
 
 1. **First Run**: LLM server takes 30-60 seconds to download and load the model (~1GB)
 2. **Memory**: LLM server requires 2-4GB RAM. Skip it if low on resources:
-   ```bash
-   sudo docker compose up -d app-server raft-node1 raft-node2 raft-node3
-   ```
-3. **Ports**: Ensure ports 9000, 50051, 50052, 50053, and 8500 are not in use
+   - **Method 1**: `docker compose up -d app-server raft-node1 raft-node2 raft-node3`
+   - **Method 2**: `docker compose -f docker-compose.combined.yml up -d movie-booking-app raft-node1 raft-node2 raft-node3`
+3. **Ports**: 
+   - **Method 1**: Ensure ports 9000, 50051-50053, 8500 are not in use
+   - **Method 2**: Ensure ports 3000, 9000, 50051-50053, 8500 are not in use
 4. **Permissions**: On Linux, you may need `sudo` for Docker commands
 5. **Networks**: All services communicate via `movie-booking-network` bridge network
+6. **Method 1** requires Python and GUI dependencies installed locally
+7. **Method 2** only requires Docker - frontend runs in container
 
 ---
 
 ## ✅ Quick Verification Checklist
 
+### Method 1: Desktop GUI
+
 After starting services, verify:
 
-- [ ] All containers are running: `sudo docker compose ps`
+- [ ] All containers are running: `docker compose ps`
 - [ ] App server responds: `curl http://localhost:9000/health`
 - [ ] Raft nodes respond: `curl http://localhost:50051/status`
-- [ ] LLM server responds: `curl http://localhost:8500/health`
-- [ ] Health check script passes: `./scripts/check_health.sh`
+- [ ] LLM server responds: `curl http://localhost:8500/health` (if running)
+- [ ] GUI launches: `python app.py` or `python app_multi.py`
+
+### Method 2: Web UI
+
+After starting services, verify:
+
+- [ ] All containers are running: `docker compose -f docker-compose.combined.yml ps`
+- [ ] App server responds: `curl http://localhost:9000/health`
+- [ ] Web frontend responds: `curl http://localhost:3000`
+- [ ] Raft nodes respond: `curl http://localhost:50051/status`
+- [ ] LLM server responds: `curl http://localhost:8500/health` (if running)
+- [ ] Web UI loads in browser: http://localhost:3000
 
 ---
 
@@ -407,4 +574,5 @@ After starting services, verify:
 - **Web UI**: `http://localhost:8080` (after running `cd web && python3 -m http.server 8080`)
 - **API**: `http://localhost:9000`
 - **LLM**: `http://localhost:8500`
+
 

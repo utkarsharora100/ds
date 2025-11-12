@@ -37,22 +37,25 @@ git clone https://github.com/utkarsharora100/ds.git
 cd ds
 ```
 
-### Step 2: Start Services
+### Step 2: Choose Your Usage Method
 
-**Option A: Combined Setup (Recommended - Frontend + Backend)**
-```bash
-docker compose -f docker-compose.combined.yml up -d --build
-```
+This system supports **two different usage methods**. Choose the one that fits your needs:
 
-**Option B: Standard Setup**
+---
+
+## 📱 Method 1: CustomTkinter Desktop GUI + Standard Docker
+
+**Best for:** Desktop applications, local development, GUI testing
+
+### Setup Steps:
+
+**2.1: Start Backend Services (Docker)**
 ```bash
+# Start backend services (app-server, raft nodes, LLM)
 docker compose up -d --build
 ```
 
-*First run takes ~10 minutes due to Docker image builds and LLM model download (~1GB).*
-
-### Step 3: Verify Services
-
+**2.2: Verify Services**
 ```bash
 # Check container status
 docker compose ps
@@ -61,25 +64,116 @@ docker compose ps
 curl http://localhost:9000/health
 ```
 
-### Step 4: Access the Application
-
-**Web UI (Recommended):**
-- **Combined Setup**: http://localhost:3000
-- **Standard Setup**: http://localhost:8080 (after running `cd web && python3 -m http.server 8080`)
-
-**Desktop GUI:**
+**2.3: Install GUI Dependencies**
 ```bash
-# Single-window GUI
-python3 app.py
-
-# Multi-window GUI (3 clients + 1 admin)
-python3 app_multi.py
+# Install Python dependencies for GUI
+pip install -r requirements-app.txt
+# OR
+pip install customtkinter requests
 ```
 
-### Step 5: Login
+**2.4: Launch Desktop GUI**
 
+**Single-Window GUI:**
+```bash
+python app.py
+```
+
+**Multi-Window GUI (3 clients + 1 admin):**
+```bash
+python app_multi.py
+```
+
+**2.5: Login**
 - **Admin**: `admin` / `123`
 - **User**: `utkarsh` / `password123`
+
+**Access Points:**
+- Backend API: http://localhost:9000
+- Desktop GUI: Launched via Python scripts
+
+---
+
+## 🌐 Method 2: Web UI + Combined Docker (Frontend + Backend)
+
+**Best for:** Web applications, remote access, production deployment
+
+### Setup Steps:
+
+**2.1: Start Combined Services (Docker)**
+```bash
+# Start all services including web frontend
+docker compose -f docker-compose.combined.yml up -d --build
+```
+
+This starts:
+- ✅ Backend API (port 9000)
+- ✅ Web Frontend (port 3000)
+- ✅ Raft Nodes (ports 50051-50053)
+- ✅ LLM Server (port 8500, optional)
+
+**2.2: Verify Services**
+```bash
+# Check container status
+docker compose -f docker-compose.combined.yml ps
+
+# Check backend health
+curl http://localhost:9000/health
+
+# Check frontend
+curl http://localhost:3000
+```
+
+**2.3: Access Web Application**
+```
+Open in browser: http://localhost:3000
+```
+
+**2.4: Login**
+- **Admin**: `admin` / `123`
+- **User**: `utkarsh` / `password123`
+
+**Access Points:**
+- Web UI: http://localhost:3000
+- Backend API: http://localhost:9000
+
+---
+
+## 📊 Comparison: Method 1 vs Method 2
+
+| Feature | Method 1: Desktop GUI | Method 2: Web UI |
+|---------|----------------------|------------------|
+| **Interface** | CustomTkinter Desktop App | Web Browser |
+| **Docker Setup** | Standard (`docker-compose.yml`) | Combined (`docker-compose.combined.yml`) |
+| **Frontend** | Runs locally (Python) | Runs in Docker (port 3000) |
+| **Backend** | Docker (port 9000) | Docker (port 9000) |
+| **Remote Access** | Requires X11/SSH forwarding | Works over network |
+| **Best For** | Local development, GUI testing | Production, remote access |
+| **Dependencies** | Python + customtkinter | Just Docker + Browser |
+
+---
+
+## ⚡ Quick Commands Summary
+
+### Method 1: Desktop GUI
+```bash
+# Start backend
+docker compose up -d
+
+# Run GUI
+python app.py              # Single window
+python app_multi.py        # Multi window (3 clients + admin)
+```
+
+### Method 2: Web UI
+```bash
+# Start everything (including web frontend)
+docker compose -f docker-compose.combined.yml up -d --build
+
+# Access at http://localhost:3000
+```
+
+*First run takes ~10 minutes due to Docker image builds and LLM model download (~1GB).*
 
 ## 📚 Documentation
 
@@ -184,17 +278,18 @@ chmod +x scripts/*.sh
 ```
 ds/
 ├── README.md                    # This file - main documentation entry point
-├── docker-compose.yml           # Standard service orchestration
-├── docker-compose.combined.yml # Combined frontend + backend setup
-├── requirements.txt            # Python dependencies
+├── docker-compose.yml           # Method 1: Standard setup (for Desktop GUI)
+├── docker-compose.combined.yml # Method 2: Combined setup (for Web UI)
+├── requirements.txt            # Full Python dependencies (includes LLM)
+├── requirements-app.txt        # GUI dependencies only (for Method 1)
 ├── main.py                     # Raft node entry point
-├── app.py                      # Single-window GUI
-├── app_multi.py                # Multi-window GUI
-├── start_combined.py           # Combined frontend + backend startup
+├── app.py                      # Method 1: Single-window GUI
+├── app_multi.py                # Method 1: Multi-window GUI
+├── start_combined.py           # Method 2: Combined frontend + backend startup
 ├── Dockerfile.app              # Application server image
 ├── Dockerfile.raft             # Raft node image
 ├── Dockerfile.llm              # LLM server image
-├── Dockerfile.combined         # Combined frontend + backend image
+├── Dockerfile.combined         # Method 2: Combined frontend + backend image
 ├── Application_server/         # FastAPI backend
 │   └── Application_server.py
 ├── raft/                       # Raft consensus
@@ -236,13 +331,13 @@ ds/
 
 ## 🐳 Docker Commands
 
-### Quick Commands
+### Method 1: Standard Docker (for Desktop GUI)
 
 ```bash
-# Start all services
+# Start backend services
 docker compose up -d
 
-# Stop all services
+# Stop services
 docker compose down
 
 # View logs
@@ -255,18 +350,32 @@ docker compose restart [service-name]
 docker compose build [service-name] --no-cache
 ```
 
-### Combined Setup
+### Method 2: Combined Docker (for Web UI)
 
 ```bash
-# Start combined frontend + backend
+# Start all services (including web frontend)
 docker compose -f docker-compose.combined.yml up -d --build
 
-# Access at http://localhost:3000
+# Stop services
+docker compose -f docker-compose.combined.yml down
+
+# View logs
+docker compose -f docker-compose.combined.yml logs -f movie-booking-app
+
+# Rebuild
+docker compose -f docker-compose.combined.yml build --no-cache movie-booking-app
 ```
 
-**Without LLM (Lower Resources)**:
+### Without LLM (Lower Resources)
+
+**Method 1:**
 ```bash
 docker compose up -d app-server raft-node1 raft-node2 raft-node3
+```
+
+**Method 2:**
+```bash
+docker compose -f docker-compose.combined.yml up -d movie-booking-app raft-node1 raft-node2 raft-node3
 ```
 
 See [DOCKER_STEPS.md](docs/DOCKER_STEPS.md) for complete Docker reference.

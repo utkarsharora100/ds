@@ -13,11 +13,49 @@ Need Docker? [Install Docker](https://docs.docker.com/get-docker/)
 
 ---
 
-## Start the System (One Command!)
+## 🎯 Choose Your Method
+
+**Method 1: Desktop GUI** (CustomTkinter)  
+**Method 2: Web UI** (Browser-based)
+
+---
+
+## 📱 Method 1: Desktop GUI (Quick Start)
+
+### Step 1: Start Backend
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+
+### Step 2: Install GUI Dependencies
+
+```bash
+pip install -r requirements-app.txt
+```
+
+### Step 3: Launch GUI
+
+```bash
+python app.py              # Single window
+python app_multi.py        # Multi window (3 clients + admin)
+```
+
+**That's it!** ✅
+
+---
+
+## 🌐 Method 2: Web UI (Quick Start)
+
+### Step 1: Start Everything
+
+```bash
+docker compose -f docker-compose.combined.yml up -d --build
+```
+
+### Step 2: Access Web UI
+
+Open browser: **http://localhost:3000**
 
 **That's it!** ✅
 
@@ -25,8 +63,16 @@ docker-compose up -d
 
 ## What Just Happened?
 
-The command started 5 services:
+### Method 1 Started:
 - ✅ Application Server (port 9000)
+- ✅ Raft Node 1 (port 50051)
+- ✅ Raft Node 2 (port 50052)
+- ✅ Raft Node 3 (port 50053)
+- ✅ LLM Server with Qwen2.5 (port 8500)
+
+### Method 2 Started:
+- ✅ Application Server (port 9000)
+- ✅ Web Frontend (port 3000)
 - ✅ Raft Node 1 (port 50051)
 - ✅ Raft Node 2 (port 50052)
 - ✅ Raft Node 3 (port 50053)

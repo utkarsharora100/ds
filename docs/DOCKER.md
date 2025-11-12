@@ -9,26 +9,40 @@ This guide explains how to run the Distributed Movie Booking System using Docker
 - **System Requirements**: 
   - 4GB RAM minimum (6GB recommended for LLM server)
   - 10GB free disk space
+- **Python 3.10+** (for Method 1 only)
 
 ### Check Installation
 
 ```bash
 docker --version
-docker-compose --version
+docker compose version
 ```
 
 ---
 
-## 🚀 Quick Start (Recommended)
+## 🎯 Two Usage Methods
 
-### Option 1: Full System with LLM
+| Method | Docker File | Interface | Use Case |
+|--------|-------------|-----------|----------|
+| **Method 1** | `docker-compose.yml` | Desktop GUI (CustomTkinter) | Local development |
+| **Method 2** | `docker-compose.combined.yml` | Web UI (Browser) | Production, remote access |
+
+---
+
+## 📱 Method 1: Standard Docker (Desktop GUI)
+
+### Quick Start
 
 ```bash
-# Build and start all services
-docker-compose up -d
+# Build and start backend services
+docker compose up -d --build
 
-# View logs
-docker-compose logs -f
+# Install GUI dependencies
+pip install -r requirements-app.txt
+
+# Launch Desktop GUI
+python app.py              # Single window
+python app_multi.py        # Multi window (3 clients + admin)
 ```
 
 **Services Started:**
@@ -36,18 +50,38 @@ docker-compose logs -f
 - ✅ Raft Node 1 (port 50051)
 - ✅ Raft Node 2 (port 50052)
 - ✅ Raft Node 3 (port 50053)
-- ✅ LLM Server (port 8500)
+- ✅ LLM Server (port 8500, optional)
+
+**Without LLM:**
+```bash
+docker compose up -d app-server raft-node1 raft-node2 raft-node3
+```
 
 ---
 
-### Option 2: Without LLM Server (Faster)
+## 🌐 Method 2: Combined Docker (Web UI)
+
+### Quick Start
 
 ```bash
-# Start without LLM to save resources
-docker-compose up -d app-server raft-node1 raft-node2 raft-node3
+# Build and start all services (including web frontend)
+docker compose -f docker-compose.combined.yml up -d --build
 
-# View logs
-docker-compose logs -f app-server raft-node1 raft-node2 raft-node3
+# Access web UI
+# Open browser: http://localhost:3000
+```
+
+**Services Started:**
+- ✅ Application Server (port 9000)
+- ✅ Web Frontend (port 3000)
+- ✅ Raft Node 1 (port 50051)
+- ✅ Raft Node 2 (port 50052)
+- ✅ Raft Node 3 (port 50053)
+- ✅ LLM Server (port 8500, optional)
+
+**Without LLM:**
+```bash
+docker compose -f docker-compose.combined.yml up -d movie-booking-app raft-node1 raft-node2 raft-node3
 ```
 
 ---
