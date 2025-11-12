@@ -182,7 +182,7 @@ docker compose -f docker-compose.combined.yml up -d --build
 
 ## 📚 Documentation
 
-All documentation is organized in the `docs/` folder. Start here:
+All documentation is organized in the `docs/` folder. See **[docs/INDEX.md](docs/INDEX.md)** for complete documentation index.
 
 ### 🎯 Getting Started
 - **[QUICKSTART.md](docs/QUICKSTART.md)** - 2-minute setup guide
@@ -192,14 +192,24 @@ All documentation is organized in the `docs/` folder. Start here:
 ### 🐳 Docker & Deployment
 - **[DOCKER.md](docs/DOCKER.md)** - Docker setup and configuration
 - **[DOCKER_STEPS.md](docs/DOCKER_STEPS.md)** - Complete Docker commands reference
+- **[DOCKER_OPTIMIZATION.md](docs/DOCKER_OPTIMIZATION.md)** - Build time optimizations
 
 ### 🏗️ Architecture & Development
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System design and architecture
 - **[CLIENT_VIEW.md](docs/CLIENT_VIEW.md)** - API reference and GUI guide
 
+### 🔧 Recent Fixes & Changes
+- **[COMPREHENSIVE_CHANGES_SUMMARY.md](docs/COMPREHENSIVE_CHANGES_SUMMARY.md)** - Complete overview of all recent fixes
+- **[RAFT_FIX_BEFORE_AFTER.md](docs/RAFT_FIX_BEFORE_AFTER.md)** - Raft leader election fix explained
+- **[MONGODB_MIGRATION_GUIDE.md](docs/MONGODB_MIGRATION_GUIDE.md)** - MongoDB migration details
+- **[IMPORT_ERROR_FIX.md](docs/IMPORT_ERROR_FIX.md)** - MongoDB import error fix
+
 ### 🧪 Testing & Troubleshooting
 - **[QUICK_REFERENCE.md](docs/QUICK_REFERENCE.md)** - Command and port cheat sheet
-- **[FIXES_SUMMARY.md](docs/FIXES_SUMMARY.md)** - Recent fixes and improvements
+- **[FIXES_SUMMARY.md](docs/FIXES_SUMMARY.md)** - Summary of all known fixes
+
+### 📖 Complete Documentation Index
+See **[docs/INDEX.md](docs/INDEX.md)** for the complete documentation index with all 20+ documentation files organized by topic.
 
 ## 🧪 Try It Out
 
@@ -264,14 +274,91 @@ curl -X POST http://localhost:9000/business \
 
 ## 🛠️ Utility Scripts
 
-Located in `scripts/`:
+All scripts are located in the `scripts/` directory. See [scripts/README.md](scripts/README.md) for complete documentation.
 
-| Script                     | Purpose                                    | Usage                              |
-|----------------------------|--------------------------------------------|------------------------------------|
-| `quickstart.sh`            | Complete setup and testing                 | `./quickstart.sh`                 |
-| `check_health.sh`          | Verify service health and Raft leader       | `./scripts/check_health.sh`       |
-| `reset_database.sh`        | Clear movies and bookings                  | `./scripts/reset_database.sh --force` |
-| `load_sample_data.sh`      | Load 15 sample movies                      | `./scripts/load_sample_data.sh --force` |
+### 🚀 Quick Start & Setup Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **quickstart.sh** | Complete automated setup and testing | `./scripts/quickstart.sh` |
+| **quickstart-optimized.sh** | Optimized setup with build caching | `./scripts/quickstart-optimized.sh` |
+| **start-with-mongodb.sh** | Start system with MongoDB persistence | `./scripts/start-with-mongodb.sh` |
+
+### 🔧 Fix & Maintenance Scripts
+
+| Script | Purpose | When to Use |
+|--------|---------|-------------|
+| **fix-raft-leader.sh** | Fix Raft leader election bug | Multiple nodes showing as "leader" |
+| **fix-import-error.sh** | Fix MongoDB import error | Backend crashes with ModuleNotFoundError |
+| **apply-all-fixes.sh** | Apply all known fixes at once | After pulling latest code |
+| **rebuild-with-fixes.sh** | Complete rebuild with all fixes | Persistent issues |
+
+### 🩺 Health Check & Monitoring Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **check_health.sh** | Comprehensive health check of all services | `./scripts/check_health.sh` |
+
+**Example Output:**
+```
+✓ App Server: OK
+✓ MongoDB: Connected
+✓ Raft Node 1: Follower
+✓ Raft Node 2: Leader  ← Only one!
+✓ Raft Node 3: Follower
+⚠ LLM Server: Starting up...
+```
+
+### 🗄️ Database Management Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **load_sample_data.sh** | Load 15 sample movies | `./scripts/load_sample_data.sh --force` |
+| **reset_database.sh** | Clear all movies and bookings | `./scripts/reset_database.sh --force` |
+
+### 🧪 Testing & Verification Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **test_llm_viability.sh** | Test LLM service functionality | `./scripts/test_llm_viability.sh` |
+| **verify-code.sh** | Verify code syntax and structure | `./scripts/verify-code.sh` |
+
+### 🔄 Project Management Scripts
+
+| Script | Purpose | Usage |
+|--------|---------|-------|
+| **reorganize-project.sh** | Reorganize project structure | `./scripts/reorganize-project.sh` |
+| **quick-fix.sh** | Quick fix for common issues | `./scripts/quick-fix.sh` |
+
+### 📋 Common Script Workflows
+
+**First Time Setup:**
+```bash
+./scripts/quickstart.sh
+```
+
+**Fix Specific Issues:**
+```bash
+# Fix Raft leader election
+./scripts/fix-raft-leader.sh
+
+# Fix MongoDB import error
+./scripts/fix-import-error.sh
+
+# Check system health
+./scripts/check_health.sh
+```
+
+**Database Management:**
+```bash
+# Load sample movies
+./scripts/load_sample_data.sh --force
+
+# Reset database
+./scripts/reset_database.sh --force
+```
+
+**Complete Documentation:** See [scripts/README.md](scripts/README.md) for detailed documentation of all scripts.
 
 **Make scripts executable** (one-time):
 ```bash

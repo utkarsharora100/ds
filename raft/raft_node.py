@@ -18,8 +18,22 @@ class RaftNode:
         self.leader_id = None
         self.running = True
 
+        # ✅ Optimized timing for Docker environment
+        self.HEARTBEAT_INTERVAL = 0.05      # 50ms (20 heartbeats/sec)
+        self.ELECTION_TIMEOUT_MIN = 0.5     # 500ms
+        self.ELECTION_TIMEOUT_MAX = 1.0     # 1000ms
+
+        # Initialize timing state
+        self.last_heartbeat_time = time.time()
+        self._stop_heartbeat = False
+        self._heartbeat_thread = None
+        self.log = []  # Log for future log replication
+        self.commit_index = 0
+
         self.election_timeout = self._reset_timeout()
         self.lock = threading.Lock()
+
+        print(f"[{self.node_id}] Timing: heartbeat={self.HEARTBEAT_INTERVAL*1000}ms, election={self.ELECTION_TIMEOUT_MIN*1000}-{self.ELECTION_TIMEOUT_MAX*1000}ms")
 
         # Start background thread for Raft timing
         self.thread = threading.Thread(target=self._run, daemon=True)
