@@ -1,12 +1,16 @@
 import uuid
 import time
 import os
+import sys
 from typing import Dict, Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import httpx
+
+# Add current directory to Python path for mongodb_storage import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import MongoDB storage module
 from mongodb_storage import MongoDBStorage
