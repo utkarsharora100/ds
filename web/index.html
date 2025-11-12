@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Booking System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="page active">
+        <div class="container">
+            <div class="card">
+                <h1>🎬 Movie Booking System</h1>
+                <h2>User Login</h2>
+                <form id="loginForm">
+                    <input type="text" id="loginUsername" placeholder="Enter Username" required>
+                    <input type="password" id="loginPassword" placeholder="Enter Password" required>
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+                <button class="btn btn-secondary" onclick="showRegister()">Register New Account</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Page -->
+    <div id="registerPage" class="page">
+        <div class="container">
+            <div class="card">
+                <h1>Register New Account</h1>
+                <form id="registerForm">
+                    <input type="text" id="regUsername" placeholder="Choose Username" required>
+                    <input type="password" id="regPassword" placeholder="Choose Password" required>
+                    <input type="password" id="regConfirmPassword" placeholder="Confirm Password" required>
+                    <button type="submit" class="btn btn-primary">Register</button>
+                </form>
+                <button class="btn btn-secondary" onclick="showLogin()">Back to Login</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="adminPage" class="page">
+        <div class="header">
+            <h1>🎬 Admin Dashboard</h1>
+            <button class="btn btn-logout" onclick="logout()">Logout</button>
+        </div>
+        
+        <div class="container">
+            <!-- Add Movie Section -->
+            <div class="card">
+                <h2>Add Movie</h2>
+                <form id="addMovieForm" class="inline-form">
+                    <input type="text" id="movieName" placeholder="Movie Name" required>
+                    <input type="text" id="movieCity" placeholder="City" required>
+                    <input type="number" id="movieSeats" placeholder="Seats" value="50" required>
+                    <button type="submit" class="btn btn-primary">Add Movie</button>
+                    <button type="button" class="btn btn-success" onclick="loadSampleMovies()">Load Sample Movies</button>
+                    <button type="button" class="btn btn-danger" onclick="clearDatabase()">Clear Database</button>
+                </form>
+            </div>
+
+            <!-- Movies Table -->
+            <div class="card">
+                <h2>Available Movies</h2>
+                <div class="table-container">
+                    <table id="adminMoviesTable">
+                        <thead>
+                            <tr>
+                                <th>Movie</th>
+                                <th>City</th>
+                                <th>Available Seats</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminMoviesBody">
+                            <tr><td colspan="3" class="loading">Loading movies...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshAdminMovies()">Refresh Movies</button>
+            </div>
+
+            <!-- All User Bookings (Admin View) -->
+            <div class="card">
+                <h2>All User Bookings</h2>
+                <div class="table-container">
+                    <table id="adminBookingsTable">
+                        <thead>
+                            <tr>
+                                <th>Booking ID</th>
+                                <th>Username</th>
+                                <th>Movie</th>
+                                <th>City</th>
+                                <th>Seats</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminBookingsBody">
+                            <tr><td colspan="5" class="loading">Loading bookings...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshAdminBookings()">Refresh Bookings</button>
+            </div>
+
+            <!-- Testing Section -->
+            <div class="card">
+                <h2>System Testing</h2>
+                <button class="btn btn-primary" onclick="testLLM()">Test LLM Service</button>
+                <button class="btn btn-primary" onclick="checkHealth()">Check System Health</button>
+                <div id="testResults" class="test-results"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Dashboard -->
+    <div id="userPage" class="page">
+        <div class="header">
+            <h1 id="userWelcome">Welcome, User!</h1>
+            <button class="btn btn-logout" onclick="logout()">Logout</button>
+        </div>
+        
+        <div class="container">
+            <div class="dashboard-grid">
+                <!-- Available Movies -->
+                <div class="card">
+                    <h2>🎥 Available Movies</h2>
+                    <div class="table-container">
+                        <table id="userMoviesTable">
+                            <thead>
+                                <tr>
+                                    <th>Movie</th>
+                                    <th>City</th>
+                                    <th>Available Seats</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userMoviesBody">
+                                <tr><td colspan="4" class="loading">Loading movies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshUserMovies()">Refresh Movies</button>
+                </div>
+
+                <!-- My Bookings -->
+                <div class="card">
+                    <h2>🎫 My Bookings</h2>
+                    <div class="table-container">
+                        <table id="bookingsTable">
+                            <thead>
+                                <tr>
+                                    <th>Booking ID</th>
+                                    <th>Movie</th>
+                                    <th>City</th>
+                                    <th>Seats</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bookingsBody">
+                                <tr><td colspan="4" class="loading">Loading bookings...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-secondary" onclick="refreshBookings()">Refresh Bookings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for booking -->
+    <div id="bookingModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeBookingModal()">&times;</span>
+            <h2>Book Movie</h2>
+            <p id="bookingMovieInfo"></p>
+            <form id="bookingForm">
+                <label for="seatsToBook">Number of Seats:</label>
+                <input type="number" id="seatsToBook" min="1" value="1" required>
+                <button type="submit" class="btn btn-primary">Confirm Booking</button>
+                <button type="button" class="btn btn-secondary" onclick="closeBookingModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

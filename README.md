@@ -48,6 +48,24 @@ A production-ready distributed movie ticket booking system featuring a **FastAPI
    - **Admin**: `admin` / `123`
    - **User**: `utkarsh` / `password123`
 
+4. **Choose your interface**:
+   
+   **Option A: Web UI** (Recommended - works over SSH):
+   ```bash
+   cd web && python3 -m http.server 8080
+   ```
+   Then open `http://localhost:8080` in your browser. Modern, responsive interface that works remotely.
+   
+   **Option B: Desktop GUI** (Requires display server):
+   ```bash
+   # Single-window GUI (one unified interface)
+   python3 app.py
+   
+   # Multi-window GUI (separate windows for 3 clients + 1 admin)
+   python3 app_multi.py
+   ```
+   *Note*: Desktop GUIs require X11/Wayland. For remote access, use SSH with X11 forwarding (`ssh -X`) or use the Web UI instead.
+
 ## 🧪 Try It Out
 
 ### Test Login
@@ -595,50 +613,6 @@ Repository: [utkarsharora100/ds](https://github.com/utkarsharora100/ds)
 ./quickstart.sh
 ```
 
-*Built with FastAPI, Raft Consensus, Qwen2.5-0.5B, Docker, and ❤️*
-```
-
-### Key Corrections and Improvements
-
-1. **Removed Duplicates**:
-   - Eliminated duplicate `# 🎬 Distributed Movie Booking System` and `## 📖 Overview` sections.
-   - Merged redundant "Quick Start" and "Documentation" sections into single, cohesive blocks.
-   - Consolidated overlapping API endpoint tables and testing instructions.
-
-2. **Standardized Formatting**:
-   - Used consistent Markdown headings (`#`, `##`, `###`) for clear hierarchy.
-   - Unified code blocks with proper language identifiers (e.g., ```bash
-   - Fixed table alignment and added consistent column headers (e.g., "Auth Required").
-   - Corrected inconsistent indentation in lists and code snippets.
-
-3. **Enhanced Clarity**:
-   - Simplified "Quick Start" to emphasize the `quickstart.sh` script.
-   - Added clear expected outputs for commands where missing.
-   - Organized testing into "Automated" and "Manual" subsections.
-   - Clarified GUI setup with X11 forwarding and CLI alternatives.
-
-4. **Logical Reorganization**:
-   - Grouped utility scripts, Docker commands, and testing for better flow.
-   - Moved "Client View Features" to a dedicated section to highlight GUI capabilities.
-   - Consolidated troubleshooting into a single, comprehensive section.
-
-5. **Fixed Errors**:
-   - Corrected inconsistent port references (e.g., `0.0.0.0` vs. `localhost`).
-   - Fixed broken script paths (e.g., `./check_health.sh` → `./scripts/check_health.sh`).
-   - Removed incomplete commands and ensured all code blocks are executable.
-   - Standardized `sudo` usage for Docker commands requiring elevated permissions.
-
-6. **Added Missing Content**:
-   - Included missing documentation files (e.g., `CLIENT_VIEW_TESTING.md`, `RAFT_TESTING.md`).
-   - Added detailed GUI setup instructions for X11 forwarding and local access.
-   - Specified Python virtual environment usage (`./venv/bin/python`) for manual execution.
-
-7. **Improved Readability**:
-   - Used consistent emojis (e.g., 🚀, 🧪, 🩺) for visual cues.
-   - Broke long sections into smaller, digestible parts.
-   - Added concise descriptions for each section and script.
-
-This README is now concise, professional, and aligned with Markdown best practices. It provides clear instructions for cloning, setting up, testing, and troubleshooting the system. If you need further refinements or specific additions, let me know! 🚀
 
 ---
 
