@@ -70,18 +70,26 @@ class ApplicationServer:
             ]
             return {"status": "success", "data": formatted_movies}
         
-        # For bookings, include username in context for filtering
+        # For bookings, filter based on user role
         if data_type == "bookings":
-            # Add username context to each booking for client-side filtering
-            bookings_with_context = []
-            for booking in self.store.get("bookings", []):
-                booking_copy = booking.copy()
-                # Add context with username from booking data
-                booking_copy["context"] = {
-                    "username": booking["data"].get("user", "unknown")
-                }
-                bookings_with_context.append(booking_copy)
-            return {"status": "success", "data": bookings_with_context}
+            # Admin sees all bookings, regular users see only their bookings
+            if username == "admin":
+                # Admin: return all bookings with username in data field
+                bookings_with_username = []
+                for booking in self.store.get("bookings", []):
+                    booking_copy = booking.copy()
+                    # Ensure username is in the data field for frontend display
+                    if "data" in booking_copy and "user" in booking_copy["data"]:
+                        booking_copy["data"]["username"] = booking_copy["data"]["user"]
+                    bookings_with_username.append(booking_copy)
+                return {"status": "success", "data": bookings_with_username}
+            else:
+                # Regular user: filter to show only their bookings
+                user_bookings = [
+                    booking for booking in self.store.get("bookings", [])
+                    if booking.get("data", {}).get("user") == username
+                ]
+                return {"status": "success", "data": user_bookings}
         
         # For other data types, use in-memory store
         if data_type not in self.store:
@@ -110,12 +118,14 @@ class ApplicationServer:
                     "message": "Insufficient seats or movie not found"
                 }
             
-            # Create booking record
+            # Create booking record with requestId
             booking_id = str(uuid.uuid4())
             entry = {
                 "id": booking_id,
+                "requestId": requestId,  # Store the requestId for frontend display
                 "data": {
                     "user": user,
+                    "username": user,  # Add username field for display
                     "movie": movie,
                     "city": city,
                     "seats": seats,
@@ -123,8 +133,8 @@ class ApplicationServer:
                 }
             }
             self.store["bookings"].append(entry)
-            print(f"[SERVER] 🎟️ Booking created → {entry}")
-            return {"status": "success", "booking_id": booking_id}
+            print(f"[SERVER] 🎟️ Booking created → User: {user}, Movie: {movie}, Seats: {seats}")
+            return {"status": "success", "booking_id": booking_id, "requestId": requestId}
 
         return {"status": "failure", "message": "Unknown request type"}
 

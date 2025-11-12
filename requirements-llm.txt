@@ -1,0 +1,25 @@
+# LLM-specific requirements
+# This file includes heavy ML dependencies - takes longer to install
+
+# FastAPI for LLM server
+fastapi==0.121.1
+uvicorn==0.38.0
+pydantic==2.12.4
+pydantic_core==2.41.5
+
+# HTTP
+requests==2.32.5
+httpx==0.27.0
+
+# Heavy ML dependencies
+torch==2.5.1
+transformers>=4.37.0
+accelerate==0.24.0
+sentencepiece>=0.2.1
+protobuf==3.20.3
+
+# Utilities
+click==8.3.0
+certifi==2025.10.5
+charset-normalizer==3.4.4
+urllib3==2.5.0
