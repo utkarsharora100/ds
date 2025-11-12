@@ -352,28 +352,30 @@ class ClientWindow(ctk.CTk):
             width=150
         ).pack(side="left", padx=5)
         
-        # My Bookings Section
+        # All Bookings Section
         bookings_frame = ctk.CTkFrame(self)
         bookings_frame.pack(pady=5, padx=10, fill="both", expand=True)
         
         ctk.CTkLabel(
             bookings_frame,
-            text="📋 My Bookings",
+            text="📋 All Bookings",
             font=("Arial", 18, "bold")
         ).pack(pady=5)
         
         self.bookings_table = ttk.Treeview(
             bookings_frame,
-            columns=("movie", "city", "seats"),
+            columns=("user", "movie", "city", "seats"),
             show="headings",
             height=8
         )
+        self.bookings_table.heading("user", text="User")
         self.bookings_table.heading("movie", text="Movie")
         self.bookings_table.heading("city", text="City")
         self.bookings_table.heading("seats", text="Seats Booked")
         
-        self.bookings_table.column("movie", width=250)
-        self.bookings_table.column("city", width=120)
+        self.bookings_table.column("user", width=120)
+        self.bookings_table.column("movie", width=200)
+        self.bookings_table.column("city", width=100)
         self.bookings_table.column("seats", width=100)
         
         self.bookings_table.pack(fill="both", expand=True, pady=5, padx=10)
@@ -460,7 +462,7 @@ class ClientWindow(ctk.CTk):
         except Exception as e:
             print(f"[{self.username}] Error refreshing movies: {e}")
         
-        # Refresh MY bookings only
+        # Refresh ALL bookings
         for item in self.bookings_table.get_children():
             self.bookings_table.delete(item)
         
@@ -473,28 +475,25 @@ class ClientWindow(ctk.CTk):
             
             if resp.get("status") == "success":
                 bookings_data = resp.get("data", [])
-                my_bookings = []
                 
-                # Filter bookings for this user only
+                # Show all bookings with username
                 for booking in bookings_data:
-                    # Check if booking belongs to this user
-                    context = booking.get("context", {})
-                    booking_user = context.get("username", "")
+                    booking_info = booking.get("data", {})
+                    # Get username from booking data or context
+                    username = booking_info.get("user", booking.get("context", {}).get("username", "Unknown"))
                     
-                    if booking_user == self.username:
-                        booking_info = booking.get("data", {})
-                        my_bookings.append(booking_info)
-                        self.bookings_table.insert(
-                            "", "end",
-                            values=(
-                                booking_info.get("movie", "N/A"),
-                                booking_info.get("city", "N/A"),
-                                booking_info.get("seats", "N/A")
-                            )
+                    self.bookings_table.insert(
+                        "", "end",
+                        values=(
+                            username,
+                            booking_info.get("movie", "N/A"),
+                            booking_info.get("city", "N/A"),
+                            booking_info.get("seats", "N/A")
                         )
+                    )
                 
                 self.status_label.configure(
-                    text=f"🔄 {time.strftime('%H:%M:%S')} | My Bookings: {len(my_bookings)}"
+                    text=f"🔄 {time.strftime('%H:%M:%S')} | Total Bookings: {len(bookings_data)}"
                 )
         except Exception as e:
             print(f"[{self.username}] Error refreshing bookings: {e}")
@@ -543,7 +542,7 @@ if __name__ == "__main__":
     print("   → All 3 clients see movies instantly (Raft sync)")
     print("   → Clients book tickets independently")
     print("   → Seats decrement in real-time across all windows")
-    print("   → Each client sees ONLY their own bookings")
+    print("   → Each client sees ALL bookings with usernames")
     print("   → Admin sees ALL bookings from all users")
     print("\n✅ This showcases Raft consensus and data consistency!")
     print("=" * 80)
@@ -573,7 +572,7 @@ if __name__ == "__main__":
     print("   3. Alice: Book 15 seats")
     print("   4. Bob: Book 20 seats")
     print("   5. Watch seat count drop to 65 in ALL windows")
-    print("   6. Check 'My Bookings' - each user sees only their bookings")
+    print("   6. Check 'All Bookings' - each user sees all bookings with usernames")
     print("   7. Admin: See ALL bookings from alice, bob, and charlie")
     print("\n🛑 Close any window to exit\n")
     

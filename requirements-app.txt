@@ -1,3 +1,6 @@
+# Requirements for app_multi.py (GUI application)
+# Does not include LLM dependencies
+
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.11.0
@@ -20,9 +23,3 @@ typing_extensions==4.15.0
 urllib3==2.5.0
 uvicorn==0.38.0
 
-# LLM dependencies (for llm-server only)
-torch==2.5.1
-transformers>=4.37.0
-accelerate==0.24.0
-sentencepiece>=0.2.1  # Updated to version with pre-built wheels for Windows
-protobuf==3.20.3
