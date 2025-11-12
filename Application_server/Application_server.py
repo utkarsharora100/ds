@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import httpx
 
 # Import storage module
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -236,52 +237,137 @@ async def clear_database_endpoint(req: Request):
 @app.post("/admin/load_sample_data")
 async def load_sample_data_endpoint(req: Request):
     """Admin endpoint to load sample movies for demonstration"""
-    data = await req.json()
-    token = data.get("token")
+    try:
+        data = await req.json()
+        token = data.get("token")
+        
+        if token not in server.sessions:
+            return JSONResponse({"status": "failure", "message": "Unauthorized"})
+        
+        user = server.sessions[token]
+        if user != "admin":
+            return JSONResponse({"status": "failure", "message": "Admin access required"})
+        
+        # Clear existing data
+        cursor = server.db.cursor()
+        cursor.execute("DELETE FROM movies")
+        server.db.commit()
+        server.store["bookings"] = []
+        
+        # Load sample movies
+        sample_movies = [
+            ("Inception", "New York", 120),
+            ("Inception", "Los Angeles", 100),
+            ("The Dark Knight", "New York", 150),
+            ("The Dark Knight", "Chicago", 80),
+            ("Interstellar", "San Francisco", 90),
+            ("Interstellar", "Boston", 110),
+            ("Avengers Endgame", "New York", 200),
+            ("Avengers Endgame", "Los Angeles", 180),
+            ("Spider-Man", "Chicago", 100),
+            ("Spider-Man", "Miami", 75),
+            ("Joker", "New York", 85),
+            ("Joker", "Seattle", 95),
+            ("Parasite", "San Francisco", 70),
+            ("Dune", "Los Angeles", 130),
+            ("Oppenheimer", "New York", 160)
+        ]
+        
+        for movie, city, seats in sample_movies:
+            storage.add_movie_to_db(server.db, movie, city, seats)
+        
+        print(f"[SERVER] 📦 Sample data loaded - {len(sample_movies)} movies")
+        return JSONResponse({
+            "status": "success",
+            "message": "Sample data loaded successfully",
+            "loaded": {
+                "movies": len(sample_movies)
+            }
+        })
+    except Exception as e:
+        print(f"[SERVER] ❌ Error loading sample data: {e}")
+        return JSONResponse({
+            "status": "failure",
+            "message": f"Error loading sample data: {str(e)}"
+        })
+
+# Proxy endpoints for health checks (to avoid CORS issues)
+@app.get("/proxy/llm/health")
+async def proxy_llm_health():
+    """Proxy endpoint for LLM health check"""
+    try:
+        llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{llm_url}/health")
+            return JSONResponse(response.json())
+    except Exception as e:
+        return JSONResponse({
+            "status": "error",
+            "message": f"LLM server unreachable: {str(e)}",
+            "model_loaded": False
+        })
+
+@app.post("/proxy/llm/ask")
+async def proxy_llm_ask(req: Request):
+    """Proxy endpoint for LLM ask"""
+    try:
+        data = await req.json()
+        llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(f"{llm_url}/ask", json=data)
+            return JSONResponse(response.json())
+    except Exception as e:
+        return JSONResponse({
+            "status": "error",
+            "answer": f"LLM server error: {str(e)}"
+        })
+
+@app.get("/proxy/raft/{node_id}/status")
+async def proxy_raft_status(node_id: str):
+    """Proxy endpoint for Raft node status"""
+    try:
+        port_map = {"1": "50051", "2": "50052", "3": "50053"}
+        port = port_map.get(node_id, "50051")
+        raft_url = os.environ.get(f"RAFT_NODE{node_id}_URL", f"http://raft-node{node_id}:{port}")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{raft_url}/status")
+            return JSONResponse(response.json())
+    except Exception as e:
+        return JSONResponse({
+            "status": "error",
+            "message": f"Raft node {node_id} unreachable: {str(e)}"
+        })
+
+@app.get("/admin/health/all")
+async def check_all_health():
+    """Check health of all services"""
+    results = {}
     
-    if token not in server.sessions:
-        return JSONResponse({"status": "failure", "message": "Unauthorized"})
+    # App server
+    results["app_server"] = {"status": "healthy", "service": "application-server"}
     
-    user = server.sessions[token]
-    if user != "admin":
-        return JSONResponse({"status": "failure", "message": "Admin access required"})
+    # LLM server
+    try:
+        llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{llm_url}/health")
+            results["llm_server"] = response.json()
+    except:
+        results["llm_server"] = {"status": "error", "message": "Unreachable"}
     
-    # Clear existing data
-    cursor = server.db.cursor()
-    cursor.execute("DELETE FROM movies")
-    server.db.commit()
-    server.store["bookings"] = []
+    # Raft nodes
+    for node_id in ["1", "2", "3"]:
+        try:
+            port_map = {"1": "50051", "2": "50052", "3": "50053"}
+            port = port_map[node_id]
+            raft_url = os.environ.get(f"RAFT_NODE{node_id}_URL", f"http://raft-node{node_id}:{port}")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(f"{raft_url}/status")
+                results[f"raft_node_{node_id}"] = response.json()
+        except:
+            results[f"raft_node_{node_id}"] = {"status": "error", "message": "Unreachable"}
     
-    # Load sample movies
-    sample_movies = [
-        ("Inception", "New York", 120),
-        ("Inception", "Los Angeles", 100),
-        ("The Dark Knight", "New York", 150),
-        ("The Dark Knight", "Chicago", 80),
-        ("Interstellar", "San Francisco", 90),
-        ("Interstellar", "Boston", 110),
-        ("Avengers Endgame", "New York", 200),
-        ("Avengers Endgame", "Los Angeles", 180),
-        ("Spider-Man", "Chicago", 100),
-        ("Spider-Man", "Miami", 75),
-        ("Joker", "New York", 85),
-        ("Joker", "Seattle", 95),
-        ("Parasite", "San Francisco", 70),
-        ("Dune", "Los Angeles", 130),
-        ("Oppenheimer", "New York", 160)
-    ]
-    
-    for movie, city, seats in sample_movies:
-        storage.add_movie_to_db(server.db, movie, city, seats)
-    
-    print(f"[SERVER] 📦 Sample data loaded - {len(sample_movies)} movies")
-    return JSONResponse({
-        "status": "success",
-        "message": "Sample data loaded successfully",
-        "loaded": {
-            "movies": len(sample_movies)
-        }
-    })
+    return JSONResponse(results)
 
 # ---------------------- RUN SERVER ----------------------
 if __name__ == "__main__":

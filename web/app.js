@@ -198,17 +198,25 @@ async function loadSampleMovies() {
             body: JSON.stringify({ token: authToken })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.status === 'success') {
             const loaded = data.loaded || {};
             showToast(`Loaded ${loaded.movies || 0} sample movies!`, 'success');
-            refreshAdminMovies();
+            // Wait a bit for data to be committed
+            setTimeout(() => {
+                refreshAdminMovies();
+            }, 500);
         } else {
             showToast(data.message || 'Failed to load sample data', 'error');
+            console.error('Load sample error response:', data);
         }
     } catch (error) {
-        showToast('Could not connect to server', 'error');
+        showToast(`Could not connect to server: ${error.message}`, 'error');
         console.error('Load sample error:', error);
     }
 }
@@ -225,18 +233,26 @@ async function clearDatabase() {
             body: JSON.stringify({ token: authToken })
         });
         
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const data = await response.json();
         
         if (data.status === 'success') {
             const cleared = data.cleared || {};
             showToast(`Cleared ${cleared.movies || 0} movies and ${cleared.bookings || 0} bookings`, 'info');
-            refreshAdminMovies();
-            refreshAdminBookings();
+            // Wait a bit for data to be committed
+            setTimeout(() => {
+                refreshAdminMovies();
+                refreshAdminBookings();
+            }, 500);
         } else {
             showToast(data.message || 'Failed to clear database', 'error');
+            console.error('Clear database error response:', data);
         }
     } catch (error) {
-        showToast('Could not connect to server', 'error');
+        showToast(`Could not connect to server: ${error.message}`, 'error');
         console.error('Clear database error:', error);
     }
 }
@@ -276,28 +292,41 @@ async function testLLM() {
     resultsDiv.textContent = 'Testing LLM service...\n';
     
     try {
-        // Test health endpoint
+        // Test health endpoint via proxy
         resultsDiv.textContent += '\n1. Checking LLM health...\n';
-        const healthResponse = await fetch('http://127.0.0.1:8500/health');
+        const healthResponse = await fetch(`${API_BASE}/proxy/llm/health`);
         const healthData = await healthResponse.json();
-        resultsDiv.textContent += `✓ Status: ${healthData.status}\n`;
-        resultsDiv.textContent += `✓ Model: ${healthData.model}\n`;
-        resultsDiv.textContent += `✓ Model Loaded: ${healthData.model_loaded}\n`;
         
-        // Test question endpoint
+        if (healthData.status === 'error') {
+            resultsDiv.textContent += `❌ LLM Server: ${healthData.message}\n`;
+            showToast('LLM service is not available', 'error');
+            return;
+        }
+        
+        resultsDiv.textContent += `✓ Status: ${healthData.status || 'OK'}\n`;
+        resultsDiv.textContent += `✓ Model: ${healthData.model || 'N/A'}\n`;
+        resultsDiv.textContent += `✓ Model Loaded: ${healthData.model_loaded ? 'Yes' : 'No'}\n`;
+        
+        // Test question endpoint via proxy
         resultsDiv.textContent += '\n2. Testing question endpoint...\n';
-        const askResponse = await fetch('http://127.0.0.1:8500/ask', {
+        const askResponse = await fetch(`${API_BASE}/proxy/llm/ask`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ question: 'How do I book a movie ticket?' })
         });
         const askData = await askResponse.json();
-        resultsDiv.textContent += `✓ Response: ${askData.answer}\n`;
         
-        showToast('LLM service is working!', 'success');
+        if (askData.status === 'error') {
+            resultsDiv.textContent += `❌ Error: ${askData.answer}\n`;
+        } else {
+            resultsDiv.textContent += `✓ Response: ${askData.answer || askData.response || 'N/A'}\n`;
+        }
+        
+        showToast('LLM service test complete!', 'success');
     } catch (error) {
         resultsDiv.textContent += `\n❌ Error: ${error.message}\n`;
         showToast('LLM service test failed', 'error');
+        console.error('LLM test error:', error);
     }
 }
 
@@ -305,25 +334,50 @@ async function checkHealth() {
     const resultsDiv = document.getElementById('testResults');
     resultsDiv.textContent = 'Checking system health...\n\n';
     
-    const services = [
-        { name: 'App Server', url: `${API_BASE}/health` },
-        { name: 'LLM Server', url: 'http://127.0.0.1:8500/health' },
-        { name: 'Raft Node 1', url: 'http://127.0.0.1:50051/status' },
-        { name: 'Raft Node 2', url: 'http://127.0.0.1:50052/status' },
-        { name: 'Raft Node 3', url: 'http://127.0.0.1:50053/status' }
-    ];
-    
-    for (const service of services) {
-        try {
-            const response = await fetch(service.url);
-            const data = await response.json();
-            resultsDiv.textContent += `✓ ${service.name}: OK\n`;
-        } catch (error) {
-            resultsDiv.textContent += `❌ ${service.name}: FAILED\n`;
+    try {
+        // Use the combined health check endpoint
+        const response = await fetch(`${API_BASE}/admin/health/all`);
+        const data = await response.json();
+        
+        // App Server
+        if (data.app_server && data.app_server.status === 'healthy') {
+            resultsDiv.textContent += `✓ App Server: OK\n`;
+        } else {
+            resultsDiv.textContent += `❌ App Server: FAILED\n`;
         }
+        
+        // LLM Server
+        if (data.llm_server) {
+            if (data.llm_server.status === 'error') {
+                resultsDiv.textContent += `❌ LLM Server: ${data.llm_server.message || 'Unreachable'}\n`;
+            } else {
+                resultsDiv.textContent += `✓ LLM Server: OK (Model: ${data.llm_server.model || 'N/A'})\n`;
+            }
+        } else {
+            resultsDiv.textContent += `❌ LLM Server: FAILED\n`;
+        }
+        
+        // Raft Nodes
+        for (let i = 1; i <= 3; i++) {
+            const nodeKey = `raft_node_${i}`;
+            if (data[nodeKey]) {
+                if (data[nodeKey].status === 'error') {
+                    resultsDiv.textContent += `❌ Raft Node ${i}: ${data[nodeKey].message || 'Unreachable'}\n`;
+                } else {
+                    const state = data[nodeKey].state || 'unknown';
+                    resultsDiv.textContent += `✓ Raft Node ${i}: OK (State: ${state})\n`;
+                }
+            } else {
+                resultsDiv.textContent += `❌ Raft Node ${i}: FAILED\n`;
+            }
+        }
+        
+        showToast('Health check complete', 'info');
+    } catch (error) {
+        resultsDiv.textContent += `❌ Error checking health: ${error.message}\n`;
+        showToast('Health check failed', 'error');
+        console.error('Health check error:', error);
     }
-    
-    showToast('Health check complete', 'info');
 }
 
 // ============================================================================

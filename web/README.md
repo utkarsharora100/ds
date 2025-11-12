@@ -18,20 +18,38 @@ A modern, responsive web-based frontend for the Distributed Movie Booking System
 
 1. **Ensure backend services are running:**
    ```bash
+   # Linux/Mac
    cd /home/aniket/study/ds
    sudo docker compose ps  # Verify all services are up
+   
+   # Windows
+   cd "C:\Users\utkarsh\Desktop\New folder (3)\ds"
+   docker compose ps
    ```
 
 2. **Start a simple HTTP server:**
    ```bash
    cd web
+   
+   # Linux/Mac - Use port 8080
    python3 -m http.server 8080
+   
+   # Windows - Use port 8000 (8080 is reserved by Windows)
+   python -m http.server 8000
+   # OR
+   python3 -m http.server 8000
    ```
 
 3. **Open in browser:**
    ```
+   # Linux/Mac
    http://localhost:8080
+   
+   # Windows
+   http://localhost:8000
    ```
+
+**⚠️ Windows Users:** Port 8080 is reserved by Windows (range 7985-8084). Use port 8000, 3000, or 5000 instead.
 
 ### Option 2: Remote Access via SSH Port Forwarding
 
@@ -147,6 +165,37 @@ Click "Register New Account" on the login page.
 - ⚠️ Internet Explorer (Not Supported)
 
 ## Troubleshooting
+
+### Windows: Port Permission Error (WinError 10013)
+
+**Error:** `OSError: [WinError 10013] An attempt was made to access a socket in a way forbidden by its access permissions`
+
+**Cause:** Port 8080 is in Windows reserved port range (7985-8084).
+
+**Solution 1: Use a different port (Recommended)**
+```powershell
+# Use port 8000 instead
+cd web
+python -m http.server 8000
+# Then open http://localhost:8000
+```
+
+**Solution 2: Check reserved ports**
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+**Solution 3: Use alternative ports**
+```powershell
+# Try these ports (not reserved):
+python -m http.server 3000   # http://localhost:3000
+python -m http.server 5000   # http://localhost:5000
+python -m http.server 8888   # http://localhost:8888
+```
+
+**Solution 4: Run as Administrator (if you must use 8080)**
+1. Right-click PowerShell → "Run as Administrator"
+2. Run: `python -m http.server 8080`
 
 ### "Could not connect to server"
 
