@@ -304,17 +304,32 @@ async def load_sample_data_endpoint(req: Request):
 # Proxy endpoints for health checks (to avoid CORS issues)
 @app.get("/proxy/llm/health")
 async def proxy_llm_health():
-    """Proxy endpoint for LLM health check"""
+    """Proxy endpoint for LLM health check - LLM service is optional"""
     try:
         llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(f"{llm_url}/health")
             return JSONResponse(response.json())
+    except httpx.ConnectError:
+        return JSONResponse({
+            "status": "unavailable",
+            "message": "LLM server is not running (optional service)",
+            "model_loaded": False,
+            "service": "llm-server"
+        })
+    except httpx.TimeoutException:
+        return JSONResponse({
+            "status": "timeout",
+            "message": "LLM server is starting up, please wait...",
+            "model_loaded": False,
+            "service": "llm-server"
+        })
     except Exception as e:
         return JSONResponse({
             "status": "error",
-            "message": f"LLM server unreachable: {str(e)}",
-            "model_loaded": False
+            "message": f"LLM error: {str(e)}",
+            "model_loaded": False,
+            "service": "llm-server"
         })
 
 @app.post("/proxy/llm/ask")
@@ -350,33 +365,65 @@ async def proxy_raft_status(node_id: str):
 
 @app.get("/admin/health/all")
 async def check_all_health():
-    """Check health of all services"""
+    """Check health of all services - comprehensive health check"""
     results = {}
-    
-    # App server
+
+    # App server (always healthy if this endpoint is reached)
     results["app_server"] = {"status": "healthy", "service": "application-server"}
-    
-    # LLM server
+
+    # LLM server (optional service)
     try:
         llm_url = os.environ.get("LLM_SERVER_URL", "http://llm-server:8500")
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(f"{llm_url}/health")
             results["llm_server"] = response.json()
-    except:
-        results["llm_server"] = {"status": "error", "message": "Unreachable"}
-    
-    # Raft nodes
+    except httpx.ConnectError:
+        results["llm_server"] = {
+            "status": "unavailable",
+            "message": "LLM server not running (optional service)",
+            "service": "llm-server"
+        }
+    except httpx.TimeoutException:
+        results["llm_server"] = {
+            "status": "timeout",
+            "message": "LLM server timeout - may be starting up",
+            "service": "llm-server"
+        }
+    except Exception as e:
+        results["llm_server"] = {
+            "status": "error",
+            "message": f"Error: {str(e)}",
+            "service": "llm-server"
+        }
+
+    # Raft nodes (critical services)
     for node_id in ["1", "2", "3"]:
         try:
             port_map = {"1": "50051", "2": "50052", "3": "50053"}
             port = port_map[node_id]
             raft_url = os.environ.get(f"RAFT_NODE{node_id}_URL", f"http://raft-node{node_id}:{port}")
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(f"{raft_url}/status")
                 results[f"raft_node_{node_id}"] = response.json()
-        except:
-            results[f"raft_node_{node_id}"] = {"status": "error", "message": "Unreachable"}
-    
+        except httpx.ConnectError:
+            results[f"raft_node_{node_id}"] = {
+                "status": "unavailable",
+                "message": f"Raft node {node_id} not running",
+                "service": f"raft-node{node_id}"
+            }
+        except httpx.TimeoutException:
+            results[f"raft_node_{node_id}"] = {
+                "status": "timeout",
+                "message": f"Raft node {node_id} timeout",
+                "service": f"raft-node{node_id}"
+            }
+        except Exception as e:
+            results[f"raft_node_{node_id}"] = {
+                "status": "error",
+                "message": f"Error: {str(e)}",
+                "service": f"raft-node{node_id}"
+            }
+
     return JSONResponse(results)
 
 # ---------------------- RUN SERVER ----------------------

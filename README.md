@@ -6,27 +6,32 @@ A production-ready distributed movie ticket booking system featuring a **FastAPI
 
 - **Raft Consensus**: 3-node cluster with automatic leader election and fault tolerance.
 - **FastAPI Backend**: RESTful APIs for authentication, movie management, and ticket bookings.
-- **AI Assistant**: Qwen2.5-0.5B LLM for intelligent FAQ and chat support.
+- **AI Assistant** *(Optional)*: Qwen2.5-0.5B LLM for intelligent FAQ and chat support.
 - **SQLite Database**: Persistent storage with real-time seat tracking.
 - **Multi-User GUI**: Supports concurrent clients with isolated bookings.
 - **Docker-First**: Fully containerized with health monitoring and centralized logs.
 
 ## 🧩 Services and Ports
 
-| Service         | Port   | Description                         |
-|-----------------|--------|-------------------------------------|
-| `app-server`    | `9000` | FastAPI backend for core operations |
-| `raft-node1`    | `50051`| Raft consensus node 1               |
-| `raft-node2`    | `50052`| Raft consensus node 2               |
-| `raft-node3`    | `50053`| Raft consensus node 3               |
-| `llm-server`    | `8500` | Qwen2.5-0.5B AI assistant server   |
+| Service         | Port   | Description                         | Required |
+|-----------------|--------|-------------------------------------|----------|
+| `app-server`    | `9000` | FastAPI backend for core operations | ✅ Yes   |
+| `raft-node1`    | `50051`| Raft consensus node 1               | ✅ Yes   |
+| `raft-node2`    | `50052`| Raft consensus node 2               | ✅ Yes   |
+| `raft-node3`    | `50053`| Raft consensus node 3               | ✅ Yes   |
+| `llm-server`    | `8500` | Qwen2.5-0.5B AI assistant server    | ⚠️ Optional |
 
 ## 🧰 Prerequisites
 
-- **Docker**: Version 20.10+ ([Install Guide](https://docs.docker.com/get-docker/)).
-- **Docker Compose**: Version 2.0+ (use `docker compose` or `docker-compose`).
-- **Python**: 3.10+ (for GUI and testing).
-- **System**: 6GB RAM (for LLM), 10GB free disk space.
+**Minimum (without LLM):**
+- **Docker**: Version 20.10+ ([Install Guide](https://docs.docker.com/get-docker/))
+- **Docker Compose**: Version 2.0+ (use `docker compose` or `docker-compose`)
+- **Python**: 3.10+ (for GUI and testing)
+- **System**: 2GB RAM, 5GB free disk space
+
+**With LLM (Optional):**
+- **System**: 6GB RAM, 10GB free disk space
+- **Note**: LLM server is optional and can be skipped to reduce resource usage
 
 ## 🚀 Quick Start
 

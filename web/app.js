@@ -346,23 +346,33 @@ async function checkHealth() {
             resultsDiv.textContent += `❌ App Server: FAILED\n`;
         }
         
-        // LLM Server
+        // LLM Server (optional service)
         if (data.llm_server) {
-            if (data.llm_server.status === 'error') {
-                resultsDiv.textContent += `❌ LLM Server: ${data.llm_server.message || 'Unreachable'}\n`;
-            } else {
+            const llmStatus = data.llm_server.status;
+            if (llmStatus === 'healthy' || llmStatus === 'running') {
                 resultsDiv.textContent += `✓ LLM Server: OK (Model: ${data.llm_server.model || 'N/A'})\n`;
+            } else if (llmStatus === 'unavailable') {
+                resultsDiv.textContent += `⚠️  LLM Server: Not Running (Optional Service)\n`;
+            } else if (llmStatus === 'timeout') {
+                resultsDiv.textContent += `⏳ LLM Server: Starting up...\n`;
+            } else {
+                resultsDiv.textContent += `❌ LLM Server: ${data.llm_server.message || 'Error'}\n`;
             }
         } else {
-            resultsDiv.textContent += `❌ LLM Server: FAILED\n`;
+            resultsDiv.textContent += `⚠️  LLM Server: Not Running (Optional)\n`;
         }
-        
-        // Raft Nodes
+
+        // Raft Nodes (critical services)
         for (let i = 1; i <= 3; i++) {
             const nodeKey = `raft_node_${i}`;
             if (data[nodeKey]) {
-                if (data[nodeKey].status === 'error') {
-                    resultsDiv.textContent += `❌ Raft Node ${i}: ${data[nodeKey].message || 'Unreachable'}\n`;
+                const raftStatus = data[nodeKey].status;
+                if (raftStatus === 'unavailable') {
+                    resultsDiv.textContent += `❌ Raft Node ${i}: Not Running\n`;
+                } else if (raftStatus === 'timeout') {
+                    resultsDiv.textContent += `⏳ Raft Node ${i}: Timeout\n`;
+                } else if (raftStatus === 'error') {
+                    resultsDiv.textContent += `❌ Raft Node ${i}: ${data[nodeKey].message || 'Error'}\n`;
                 } else {
                     const state = data[nodeKey].state || 'unknown';
                     resultsDiv.textContent += `✓ Raft Node ${i}: OK (State: ${state})\n`;
