@@ -31,7 +31,7 @@ docker compose up -d
 ### Step 2: Install GUI Dependencies
 
 ```bash
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 ```
 
 ### Step 3: Launch GUI

@@ -38,7 +38,7 @@ This system supports two Docker setups:
 docker compose up -d --build
 
 # Then launch GUI locally
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 python app.py              # Single window
 python app_multi.py        # Multi window
 ```
@@ -74,7 +74,7 @@ docker compose up -d
 
 **Step 3: Launch Desktop GUI (locally)**
 ```bash
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 python app.py              # Single window
 python app_multi.py        # Multi window
 ```
@@ -422,7 +422,7 @@ docker compose build
 docker compose up -d
 
 # 3. Install GUI dependencies
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 
 # 4. Launch GUI
 python app.py              # Single window

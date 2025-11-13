@@ -38,7 +38,7 @@ docker compose version
 docker compose up -d --build
 
 # Install GUI dependencies
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 
 # Launch Desktop GUI
 python app.py              # Single window
@@ -437,7 +437,7 @@ Update Dockerfiles to use multi-stage builds for smaller images.
 Order Dockerfile commands from least to most frequently changing:
 ```dockerfile
 # Good order
-COPY requirements.txt .
+COPY requirements/requirements.txt .
 RUN pip install -r requirements.txt
 COPY . .
 ```

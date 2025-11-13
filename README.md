@@ -72,7 +72,7 @@ curl http://localhost:9000/health
 **2.3: Install GUI Dependencies**
 ```bash
 # Install Python dependencies for GUI
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 # OR
 pip install customtkinter requests
 ```
@@ -372,16 +372,21 @@ ds/
 ├── README.md                    # This file - main documentation entry point
 ├── docker-compose.yml           # Method 1: Standard setup (for Desktop GUI)
 ├── docker-compose.combined.yml # Method 2: Combined setup (for Web UI)
-├── requirements.txt            # Full Python dependencies (includes LLM)
-├── requirements-app.txt        # GUI dependencies only (for Method 1)
+├── requirements/
+│   ├── requirements.txt        # Full Python dependencies (includes LLM)
+│   ├── requirements-app.txt    # GUI dependencies only (for Method 1)
+│   ├── requirements-raft.txt   # Raft node dependencies
+│   ├── requirements-llm.txt    # LLM server dependencies
+│   └── requirements-base.txt   # Base dependencies
+├── docker/
+│   ├── Dockerfile.app          # Application server image
+│   ├── Dockerfile.raft         # Raft node image
+│   ├── Dockerfile.llm          # LLM server image
+│   └── Dockerfile.combined     # Method 2: Combined frontend + backend image
 ├── main.py                     # Raft node entry point
 ├── app.py                      # Method 1: Single-window GUI
 ├── app_multi.py                # Method 1: Multi-window GUI
 ├── start_combined.py           # Method 2: Combined frontend + backend startup
-├── Dockerfile.app              # Application server image
-├── Dockerfile.raft             # Raft node image
-├── Dockerfile.llm              # LLM server image
-├── Dockerfile.combined         # Method 2: Combined frontend + backend image
 ├── Application_server/         # FastAPI backend
 │   └── Application_server.py
 ├── raft/                       # Raft consensus

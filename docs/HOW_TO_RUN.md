@@ -67,7 +67,7 @@ Expected output:
 
 ```bash
 # Install Python dependencies for GUI
-pip install -r requirements-app.txt
+pip install -r requirements/requirements-app.txt
 
 # OR install manually
 pip install customtkinter requests

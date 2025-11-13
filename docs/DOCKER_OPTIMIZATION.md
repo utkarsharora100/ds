@@ -171,7 +171,7 @@ docker compose -f docker-compose.combined.yml up -d
 **Solution:** Make sure you're in the project root directory:
 ```bash
 cd /path/to/ds
-ls requirements-*.txt  # Should show all requirement files
+ls requirements/requirements-*.txt  # Should show all requirement files
 ```
 
 ### Issue: Build still slow
