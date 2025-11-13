@@ -1,0 +1,81 @@
+{
+  "test_date": "2025-11-13 05:43:10",
+  "model": "distilgpt2",
+  "benchmarks": {
+    "sequential": {
+      "iterations": 10,
+      "successful": 10,
+      "failed": 0,
+      "avg_time": 6.059769773483277,
+      "median_time": 6.079907059669495,
+      "min_time": 2.0964620113372803,
+      "max_time": 10.15878176689148,
+      "stdev": 2.9449726138491368,
+      "all_times": [
+        10.15878176689148,
+        9.334650754928589,
+        3.663397789001465,
+        8.167833089828491,
+        3.3104891777038574,
+        3.5177600383758545,
+        8.188508987426758,
+        7.823752164840698,
+        4.336061954498291,
+        2.0964620113372803
+      ]
+    },
+    "concurrent": {
+      "num_requests": 10,
+      "num_workers": 5,
+      "successful": 7,
+      "failed": 3,
+      "total_time": 57.284937143325806,
+      "avg_time": 18.873947279793875,
+      "median_time": 20.007135152816772,
+      "min_time": 5.722026109695435,
+      "max_time": 29.923168182373047,
+      "throughput": 0.17456595919761933,
+      "all_times": [
+        5.722026109695435,
+        8.176097869873047,
+        11.844497919082642,
+        20.007135152816772,
+        27.277769804000854,
+        29.166935920715332,
+        29.923168182373047
+      ]
+    },
+    "warmup": {
+      "iterations": 3,
+      "first_avg": 8.59035595258077,
+      "subsequent_avg": 8.82887429661221,
+      "difference": -0.2385183440314389,
+      "first_times": [
+        10.077152013778687,
+        12.554105997085571,
+        3.1398098468780518
+      ],
+      "subsequent_times": [
+        9.491469303766886,
+        7.9930046399434405,
+        9.002148946126303
+      ]
+    },
+    "memory": {
+      "memory_usage": "337MiB / 2GiB"
+    },
+    "consistency": {
+      "iterations": 5,
+      "unique_responses": 5,
+      "similarity": 0.0,
+      "avg_time": 8.26751618385315,
+      "responses": [
+        "I don't know. But they are just some kind of thing that's a good idea, but there should be refunds if you have any concerns about your purchases and for those who haven\u00b4t got it done properly\u2026 It doesn\ufffdve been confirmed in my opinion by anybody at this time yet [but] we can confirm to us where customers might get their money back from through all our exchanges so as not to increase risk or delay on orders due to issues with them \u2013 what happens next?\"\n\"The whole process goes down without saying anything,\" said Mr Turnbull.",
+        "I don't have a card in my wallet. It's not something that can be redeemed with credit cards if you've made an unauthorized purchase of anything, which means it doesn\" \u2013 and thus isn`t valid for me (because what was done to pay someone else $20?). If there were any concerns about how this could work, why would they change their policies or adjust them so quickly without changing course at all?! The refunds should go away now!",
+        "The credit card issuer will be able to return any of its purchases and refunds using a debit or credit-card, as well as from our retail stores. We have no choice but to provide you with your details before returning this product so we can send that information back on time until some other action takes place in order for it to receive correct returns.\"\nBRAISTS are required by law to ensure they get their claim promptly - especially if an individual has been charged under one of the following circumstances (e.g., financial difficulties). If there is insufficient evidence to prove fraud within 3 weeks of receiving the payment \u2013 particularly when not filing",
+        "The money will be distributed by an entity or a company. For example, you can also buy tickets and sell items as part of your event at Ticketmaster International (Ticketmaster) on Amazon Prime in Australia to get more than $15 per person for free during that time period - if there are no refunds then they'll take care of their property so it's all well and good! In addition, we want to help other retailers who don't have paid-off ticket fees make sure they're happy with this offer because those people may not feel like paying any extra while using them instead of just checking out my account.\"\nThe question",
+        "No. The refunds are only available in a limited number of states, and you must purchase certain products that may be included on your account for use with eligible customers from other countries during its current period or to obtain additional items within 24 hours (at no charge), provided they apply directly to our memberships through an online shop! If we have any questions regarding customer service please contact us at support@support.com"
+      ]
+    }
+  }
+}

@@ -5,7 +5,7 @@ services:
   app-server:
     build:
       context: .
-      dockerfile: docker/Dockerfile.app
+      dockerfile: Dockerfile.app
     container_name: movie-app-server
     ports:
       - "9000:9000"
@@ -47,7 +47,7 @@ services:
   raft-node1:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node1
     command: ["node1"]
     ports:
@@ -64,7 +64,7 @@ services:
   raft-node2:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node2
     command: ["node2"]
     ports:
@@ -81,7 +81,7 @@ services:
   raft-node3:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node3
     command: ["node3"]
     ports:
@@ -98,7 +98,7 @@ services:
   llm-server:
     build:
       context: .
-      dockerfile: docker/Dockerfile.llm
+      dockerfile: Dockerfile.llm
     container_name: movie-llm-server
     ports:
       - "8500:8500"

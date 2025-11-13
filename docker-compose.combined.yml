@@ -3,7 +3,7 @@ services:
   movie-booking-app:
     build:
       context: .
-      dockerfile: Dockerfile.combined
+      dockerfile: docker/Dockerfile.combined
     container_name: movie-booking-combined
     ports:
       - "9000:9000"  # Backend API
@@ -53,7 +53,7 @@ services:
   raft-node1:
     build:
       context: .
-      dockerfile: Dockerfile.raft
+      dockerfile: docker/Dockerfile.raft
     container_name: raft-node1
     command: ["node1"]
     ports:
@@ -68,7 +68,7 @@ services:
   raft-node2:
     build:
       context: .
-      dockerfile: Dockerfile.raft
+      dockerfile: docker/Dockerfile.raft
     container_name: raft-node2
     command: ["node2"]
     ports:
@@ -83,7 +83,7 @@ services:
   raft-node3:
     build:
       context: .
-      dockerfile: Dockerfile.raft
+      dockerfile: docker/Dockerfile.raft
     container_name: raft-node3
     command: ["node3"]
     ports:
@@ -98,7 +98,7 @@ services:
   llm-server:
     build:
       context: .
-      dockerfile: Dockerfile.llm
+      dockerfile: docker/Dockerfile.llm
     container_name: movie-llm-server
     ports:
       - "8500:8500"

@@ -20,6 +20,15 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
+# Import prompt templates and fallback strategies
+from llm.prompt_templates import (
+    generate_response,
+    is_off_topic,
+    find_template_response,
+    FAQ_GENERATION_PARAMS,
+    OFF_TOPIC_RESPONSE
+)
+
 # -----------------------------
 # Initialize FastAPI app
 # -----------------------------
@@ -236,8 +245,13 @@ async def chat(request: ChatRequest):
 @app.post("/ask", response_model=QuestionResponse, tags=["faq"])
 async def ask_question(request: QuestionRequest):
     """
-    Simple Q&A endpoint for single questions.
-    Optimized for DistilGPT-2 with simple "Q: / A:" format.
+    Enhanced Q&A endpoint with improved prompts and fallback strategies.
+
+    Features:
+    - Off-topic detection (weather, sports, etc.)
+    - Template responses for common questions (instant, consistent)
+    - Few-shot prompts for LLM generation (better quality)
+    - Optimized generation parameters (faster, more focused)
 
     Example:
     {
@@ -248,33 +262,24 @@ async def ask_question(request: QuestionRequest):
         raise HTTPException(status_code=503, detail="Model is still loading. Please try again in a moment.")
 
     try:
-        # ✅ Simple prompt format for small models (works better than complex system prompts)
-        prompt = f"Q: {request.question}\nA:"
+        # Helper function to call LLM with prompt
+        def use_llm(prompt: str, params: dict) -> str:
+            """Call LLM with given prompt and parameters"""
+            result = text_gen_pipeline(
+                prompt,
+                **params,
+                return_full_text=False,
+                pad_token_id=tokenizer.eos_token_id
+            )
+            return result[0]["generated_text"].strip()
 
-        # ✅ Use pipeline with optimized generation parameters
-        result = text_gen_pipeline(
-            prompt,
-            max_new_tokens=MAX_NEW_TOKENS,
-            temperature=TEMPERATURE,
-            top_p=TOP_P,
-            top_k=50,  # Limit vocabulary for coherence
-            repetition_penalty=1.1,  # Reduce repetition
-            do_sample=True,
-            early_stopping=True,
-            return_full_text=False,
-            pad_token_id=tokenizer.eos_token_id
+        # ✅ Use improved response generation with fallback strategy
+        # Priority: off-topic detection → template → LLM with few-shot → fallback
+        answer = generate_response(
+            question=request.question,
+            use_llm_func=use_llm,
+            generation_params=FAQ_GENERATION_PARAMS
         )
-
-        # Extract the assistant's response
-        answer = result[0]["generated_text"].strip()
-
-        # ✅ Clean up response (remove trailing Q: if model repeats pattern)
-        if "\nQ:" in answer:
-            answer = answer.split("\nQ:")[0].strip()
-
-        # Fallback for empty responses
-        if not answer or len(answer) < 5:
-            answer = "I'm sorry, I couldn't generate a proper response. Please try rephrasing your question."
 
         return QuestionResponse(
             answer=answer,
@@ -283,4 +288,10 @@ async def ask_question(request: QuestionRequest):
         )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Question answering error: {str(e)}")
+        # Graceful error handling
+        error_response = f"I apologize, but I encountered an error. Please try again or contact support@movietix.ai."
+        return QuestionResponse(
+            answer=error_response,
+            question=request.question,
+            model=MODEL_NAME
+        )

@@ -1,0 +1,84 @@
+{
+  "test_date": "2025-11-13 06:02:43",
+  "model": "distilgpt2",
+  "benchmarks": {
+    "sequential": {
+      "iterations": 10,
+      "successful": 10,
+      "failed": 0,
+      "avg_time": 0.0025777339935302733,
+      "median_time": 0.0023735761642456055,
+      "min_time": 0.0018792152404785156,
+      "max_time": 0.0033800601959228516,
+      "stdev": 0.0005631322547107323,
+      "all_times": [
+        0.0032219886779785156,
+        0.0033800601959228516,
+        0.0022721290588378906,
+        0.0020689964294433594,
+        0.0030689239501953125,
+        0.0024750232696533203,
+        0.0020558834075927734,
+        0.0031309127807617188,
+        0.0022242069244384766,
+        0.0018792152404785156
+      ]
+    },
+    "concurrent": {
+      "num_requests": 10,
+      "num_workers": 5,
+      "successful": 10,
+      "failed": 0,
+      "total_time": 0.01719498634338379,
+      "avg_time": 0.007249951362609863,
+      "median_time": 0.006870388984680176,
+      "min_time": 0.005290985107421875,
+      "max_time": 0.009630918502807617,
+      "throughput": 581.5648701487778,
+      "all_times": [
+        0.007776021957397461,
+        0.006669044494628906,
+        0.00640106201171875,
+        0.00940394401550293,
+        0.009630918502807617,
+        0.005755901336669922,
+        0.00783085823059082,
+        0.006970882415771484,
+        0.006769895553588867,
+        0.005290985107421875
+      ]
+    },
+    "warmup": {
+      "iterations": 3,
+      "first_avg": 0.005904356638590495,
+      "subsequent_avg": 0.0037247339884440103,
+      "difference": 0.002179622650146485,
+      "first_times": [
+        0.006479978561401367,
+        0.007328987121582031,
+        0.003904104232788086
+      ],
+      "subsequent_times": [
+        0.003727436065673828,
+        0.004455089569091797,
+        0.0029916763305664062
+      ]
+    },
+    "memory": {
+      "memory_usage": "380MiB / 2GiB"
+    },
+    "consistency": {
+      "iterations": 5,
+      "unique_responses": 1,
+      "similarity": 0.8,
+      "avg_time": 0.0049835205078125,
+      "responses": [
+        "Refunds are issued for cancellations made at least 1 hour before showtime. Processing takes 3-5 business days.",
+        "Refunds are issued for cancellations made at least 1 hour before showtime. Processing takes 3-5 business days.",
+        "Refunds are issued for cancellations made at least 1 hour before showtime. Processing takes 3-5 business days.",
+        "Refunds are issued for cancellations made at least 1 hour before showtime. Processing takes 3-5 business days.",
+        "Refunds are issued for cancellations made at least 1 hour before showtime. Processing takes 3-5 business days."
+      ]
+    }
+  }
+}

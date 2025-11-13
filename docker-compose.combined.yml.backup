@@ -1,18 +1,21 @@
-version: '3.8'
-
 services:
-  # Application Server - FastAPI backend for movie bookings
-  app-server:
+  # Combined Frontend + Backend Service
+  movie-booking-app:
     build:
       context: .
-      dockerfile: docker/Dockerfile.app
-    container_name: movie-app-server
+      dockerfile: Dockerfile.combined
+    container_name: movie-booking-combined
     ports:
-      - "9000:9000"
+      - "9000:9000"  # Backend API
+      - "3000:3000"  # Frontend Web Server
     environment:
       - APP_HOST=0.0.0.0
       - APP_PORT=9000
       - MONGODB_URL=mongodb://mongodb:27017/
+      - LLM_SERVER_URL=http://llm-server:8500
+      - RAFT_NODE1_URL=http://raft-node1:50051
+      - RAFT_NODE2_URL=http://raft-node2:50052
+      - RAFT_NODE3_URL=http://raft-node3:50053
     networks:
       - movie-booking-network
     healthcheck:
@@ -24,6 +27,9 @@ services:
     restart: unless-stopped
     depends_on:
       - mongodb
+      - raft-node1
+      - raft-node2
+      - raft-node3
 
   # MongoDB - Database
   mongodb:
@@ -47,7 +53,7 @@ services:
   raft-node1:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node1
     command: ["node1"]
     ports:
@@ -56,15 +62,13 @@ services:
       - DOCKER_ENV=true
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
 
   # Raft Node 2 - Consensus layer
   raft-node2:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node2
     command: ["node2"]
     ports:
@@ -73,15 +77,13 @@ services:
       - DOCKER_ENV=true
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
 
   # Raft Node 3 - Consensus layer
   raft-node3:
     build:
       context: .
-      dockerfile: docker/Dockerfile.raft
+      dockerfile: Dockerfile.raft
     container_name: raft-node3
     command: ["node3"]
     ports:
@@ -90,15 +92,13 @@ services:
       - DOCKER_ENV=true
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
 
-  # LLM Server - FAQ Assistant (optional, can be disabled)
+  # LLM Server - FAQ Assistant (optional)
   llm-server:
     build:
       context: .
-      dockerfile: docker/Dockerfile.llm
+      dockerfile: Dockerfile.llm
     container_name: movie-llm-server
     ports:
       - "8500:8500"
@@ -116,7 +116,6 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
-    # Uncomment below to limit memory usage for LLM
     deploy:
       resources:
         limits:
@@ -132,3 +131,4 @@ networks:
 volumes:
   mongodb-data:
     driver: local
+
