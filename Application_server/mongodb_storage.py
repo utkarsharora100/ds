@@ -36,7 +36,7 @@ class MongoDBStorage:
         # Initialize with default admin user if not exists
         self._initialize_default_data()
 
-        print("[MONGODB] ✅ Connected to MongoDB successfully")
+        print("[MONGODB]  Connected to MongoDB successfully")
 
     def _create_indexes(self):
         """Create indexes for better query performance"""
@@ -53,7 +53,7 @@ class MongoDBStorage:
         self.bookings.create_index([("user", ASCENDING)])
         self.bookings.create_index([("requestId", ASCENDING)])
 
-        print("[MONGODB] ✅ Indexes created")
+        print("[MONGODB] Indexes created")
 
     def _initialize_default_data(self):
         """Initialize default admin user and sample user"""
@@ -65,7 +65,7 @@ class MongoDBStorage:
                     "password": "123",
                     "created_at": time.time()
                 })
-                print("[MONGODB] ✅ Default admin user created")
+                print("[MONGODB]  Default admin user created")
 
             # Create sample user if not exists
             if self.users.count_documents({"username": "utkarsh"}) == 0:
@@ -74,10 +74,10 @@ class MongoDBStorage:
                     "password": "password123",
                     "created_at": time.time()
                 })
-                print("[MONGODB] ✅ Sample user 'utkarsh' created")
+                print("[MONGODB]  Sample user 'utkarsh' created")
 
         except Exception as e:
-            print(f"[MONGODB] ⚠️  Error initializing default data: {e}")
+            print(f"[MONGODB]   Error initializing default data: {e}")
 
     # ==================== USER MANAGEMENT ====================
 
@@ -89,12 +89,12 @@ class MongoDBStorage:
                 "password": password,
                 "created_at": time.time()
             })
-            print(f"[MONGODB] ✅ User created: {username}")
+            print(f"[MONGODB]  User created: {username}")
             return {"status": "success", "message": "User created"}
         except DuplicateKeyError:
             return {"status": "failure", "message": "User already exists"}
         except Exception as e:
-            print(f"[MONGODB] ❌ Error creating user: {e}")
+            print(f"[MONGODB]  Error creating user: {e}")
             return {"status": "failure", "message": str(e)}
 
     def verify_user(self, username: str, password: str) -> bool:
@@ -118,7 +118,7 @@ class MongoDBStorage:
             })
             return True
         except Exception as e:
-            print(f"[MONGODB] ❌ Error creating session: {e}")
+            print(f"[MONGODB]  Error creating session: {e}")
             return False
 
     def get_session(self, token: str) -> Optional[str]:
@@ -142,13 +142,13 @@ class MongoDBStorage:
                 "seats": seats,
                 "created_at": time.time()
             })
-            print(f"[MONGODB] ✅ Movie added: {movie} ({city}) - {seats} seats")
+            print(f"[MONGODB]  Movie added: {movie} ({city}) - {seats} seats")
             return True
         except DuplicateKeyError:
-            print(f"[MONGODB] ⚠️  Movie already exists: {movie} ({city})")
+            print(f"[MONGODB]   Movie already exists: {movie} ({city})")
             return False
         except Exception as e:
-            print(f"[MONGODB] ❌ Error adding movie: {e}")
+            print(f"[MONGODB]  Error adding movie: {e}")
             return False
 
     def get_all_movies(self) -> List[Dict]:
@@ -164,17 +164,17 @@ class MongoDBStorage:
         )
 
         if result.modified_count > 0:
-            print(f"[MONGODB] ✅ Seats updated: {movie} ({city}) - booked {seats_to_book}")
+            print(f"[MONGODB]  Seats updated: {movie} ({city}) - booked {seats_to_book}")
             return True
         else:
-            print(f"[MONGODB] ❌ Insufficient seats or movie not found: {movie} ({city})")
+            print(f"[MONGODB]  Insufficient seats or movie not found: {movie} ({city})")
             return False
 
     def clear_all_movies(self) -> int:
         """Clear all movies"""
         result = self.movies.delete_many({})
         count = result.deleted_count
-        print(f"[MONGODB] 🗑️  Cleared {count} movies")
+        print(f"[MONGODB]   Cleared {count} movies")
         return count
 
     # ==================== BOOKING MANAGEMENT ====================
@@ -184,10 +184,10 @@ class MongoDBStorage:
         try:
             booking_data["created_at"] = time.time()
             self.bookings.insert_one(booking_data)
-            print(f"[MONGODB] ✅ Booking created: {booking_data.get('id')}")
+            print(f"[MONGODB] Booking created: {booking_data.get('id')}")
             return True
         except Exception as e:
-            print(f"[MONGODB] ❌ Error creating booking: {e}")
+            print(f"[MONGODB] Error creating booking: {e}")
             return False
 
     def get_all_bookings(self) -> List[Dict]:
@@ -204,7 +204,7 @@ class MongoDBStorage:
         """Clear all bookings"""
         result = self.bookings.delete_many({})
         count = result.deleted_count
-        print(f"[MONGODB] 🗑️  Cleared {count} bookings")
+        print(f"[MONGODB] Cleared {count} bookings")
         return count
 
     # ==================== SAMPLE DATA ====================
@@ -234,13 +234,13 @@ class MongoDBStorage:
             if self.add_movie(**movie_data):
                 loaded_count += 1
 
-        print(f"[MONGODB] ✅ Loaded {loaded_count} sample movies")
+        print(f"[MONGODB] Loaded {loaded_count} sample movies")
         return loaded_count
 
     def close(self):
         """Close MongoDB connection"""
         self.client.close()
-        print("[MONGODB] ❌ Connection closed")
+        print("[MONGODB] Connection closed")
 
 
 # ==================== HELPER FUNCTIONS ====================

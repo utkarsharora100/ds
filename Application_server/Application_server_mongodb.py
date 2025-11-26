@@ -17,12 +17,12 @@ class ApplicationServer:
         # Initialize MongoDB connection
         try:
             self.storage = MongoDBStorage()
-            print("[SERVER] ✅ MongoDB Storage initialized successfully")
+            print("[SERVER]  MongoDB Storage initialized successfully")
         except Exception as e:
-            print(f"[SERVER] ❌ Failed to initialize MongoDB: {e}")
+            print(f"[SERVER]  Failed to initialize MongoDB: {e}")
             raise
 
-        print("[SERVER] ✅ Application Server initialized.")
+        print("[SERVER] Application Server initialized.")
 
     # ---------------------- AUTH ----------------------
     def register_user(self, username: str, password: str) -> Dict[str, Any]:
@@ -40,12 +40,12 @@ class ApplicationServer:
         token = str(uuid.uuid4())
         self.storage.create_session(token, username)
 
-        print(f"[SERVER] 🔑 User '{username}' logged in. Token = {token}")
+        print(f"[SERVER] User '{username}' logged in. Token = {token}")
         return {"status": "success", "token": token, "user": username}
 
     def logout(self, token: str) -> Dict[str, Any]:
         if self.storage.delete_session(token):
-            print(f"[SERVER] 🔓 User logged out")
+            print(f"[SERVER] User logged out")
             return {"status": "success", "message": "Logged out successfully"}
         return {"status": "failure", "message": "Invalid token"}
 
@@ -119,12 +119,11 @@ class ApplicationServer:
             }
 
             self.storage.create_booking(booking_data)
-            print(f"[SERVER] 🎟️ Booking created → User: {username}, Movie: {movie}, Seats: {seats}")
+            print(f"[SERVER] Booking created → User: {username}, Movie: {movie}, Seats: {seats}")
             return {"status": "success", "booking_id": booking_id, "requestId": requestId}
 
         return {"status": "failure", "message": "Unknown request type"}
 
-    # ---------------------- ADMIN ----------------------
     def add_movie(self, token: str, movie: str, city: str, seats: int = 50):
         username = self.storage.get_session(token)
         if not username:
@@ -138,7 +137,7 @@ class ApplicationServer:
                 "message": "Movie already exists in this city"
             }
 
-        print(f"[SERVER] 🍿 Movie added → {movie} ({city}) with {seats} seats")
+        print(f"[SERVER]  Movie added → {movie} ({city}) with {seats} seats")
         return {"status": "success"}
 
     def clear_database(self, token: str):
@@ -150,7 +149,7 @@ class ApplicationServer:
         movies_count = self.storage.clear_all_movies()
         bookings_count = self.storage.clear_all_bookings()
 
-        print(f"[SERVER] 🗑️ Database cleared - {movies_count} movies, {bookings_count} bookings")
+        print(f"[SERVER]  Database cleared - {movies_count} movies, {bookings_count} bookings")
         return {
             "status": "success",
             "message": "Database cleared successfully",
@@ -255,7 +254,7 @@ async def load_sample_data_endpoint(req: Request):
         token = data.get("token", "")
         return JSONResponse(server.load_sample_data(token))
     except Exception as e:
-        print(f"[SERVER] ❌ Error loading sample data: {e}")
+        print(f"[SERVER]  Error loading sample data: {e}")
         return JSONResponse({
             "status": "failure",
             "message": f"Error loading sample data: {str(e)}"
@@ -390,6 +389,6 @@ async def check_all_health():
 # ---------------------- SERVER STARTUP ----------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 9000))
-    print(f"[SERVER] 🚀 Starting Application Server on port {port}")
-    print(f"[SERVER] 🗄️  Using MongoDB for persistent storage")
+    print(f"[SERVER]  Starting Application Server on port {port}")
+    print(f"[SERVER]   Using MongoDB for persistent storage")
     uvicorn.run(app, host="0.0.0.0", port=port)

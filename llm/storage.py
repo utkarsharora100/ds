@@ -238,7 +238,7 @@ def update_movie_seats(conn, movie: str, city: str, seats_to_remove: int):
 if __name__ == "__main__":
     db = create_in_memory_db()
 
-    print("✅ DB Ready")
+    print("DB Ready")
 
     # create user
     create_user(db, "admin", "pass123")

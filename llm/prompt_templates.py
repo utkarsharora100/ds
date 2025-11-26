@@ -3,9 +3,7 @@ Prompt Templates and Fallback Strategies for DistilGPT-2 Movie Booking Assistant
 Provides context injection, few-shot examples, and template responses
 """
 
-# ===========================================
 # SYSTEM CONTEXT (Movie Booking Domain)
-# ===========================================
 
 SYSTEM_CONTEXT = """Movie Ticket Booking System
 
@@ -18,9 +16,6 @@ Key Information:
 - Node Failures: Automatic leader election ensures continuous service
 - Support: support@movietix.ai"""
 
-# ===========================================
-# FEW-SHOT EXAMPLES (Teaching Response Style)
-# ===========================================
 
 FEW_SHOT_EXAMPLES = """Q: How do I book a ticket?
 A: To book: 1) Search for your movie, 2) Select seats and showtime, 3) Complete payment. Your booking is confirmed instantly after successful payment.
@@ -37,9 +32,6 @@ A: For assistance, email support@movietix.ai. The system automatically handles m
 Q: When do I get my refund?
 A: Refunds are processed within 3-5 business days after cancellation to your original payment method."""
 
-# ===========================================
-# PROMPT TEMPLATES
-# ===========================================
 
 def get_fewshot_prompt(question: str) -> str:
     """
@@ -84,9 +76,7 @@ Q: {question}
 A:"""
 
 
-# ===========================================
 # TEMPLATE RESPONSES (Fast, Consistent)
-# ===========================================
 
 TEMPLATE_RESPONSES = {
     # Booking
@@ -136,9 +126,7 @@ TEMPLATE_RESPONSES = {
 }
 
 
-# ===========================================
 # OFF-TOPIC DETECTION
-# ===========================================
 
 OFF_TOPIC_KEYWORDS = [
     # Weather
@@ -182,9 +170,7 @@ def is_off_topic(question: str) -> bool:
     return any(keyword in question_lower for keyword in OFF_TOPIC_KEYWORDS)
 
 
-# ===========================================
 # KEYWORD MATCHING FOR TEMPLATE RESPONSES
-# ===========================================
 
 TEMPLATE_KEYWORDS = {
     # Booking
@@ -237,9 +223,8 @@ def find_template_response(question: str) -> str:
     return None
 
 
-# ===========================================
 # GENERATION PARAMETERS
-# ===========================================
+
 
 FAQ_GENERATION_PARAMS = {
     "max_new_tokens": 100,  # Shorter for concise answers
@@ -262,9 +247,9 @@ CHAT_GENERATION_PARAMS = {
 }
 
 
-# ===========================================
+
 # RESPONSE POST-PROCESSING
-# ===========================================
+
 
 def clean_response(answer: str) -> str:
     """
@@ -320,9 +305,7 @@ def validate_response(answer: str, question: str) -> str:
     return answer
 
 
-# ===========================================
 # MAIN RESPONSE GENERATOR
-# ===========================================
 
 def generate_response(question: str, use_llm_func, generation_params: dict) -> str:
     """
@@ -369,9 +352,7 @@ def generate_response(question: str, use_llm_func, generation_params: dict) -> s
         return f"I apologize, but I encountered an error processing your question. Please try rephrasing or contact support@movietix.ai. (Error: {str(e)[:50]})"
 
 
-# ===========================================
 # USAGE EXAMPLE
-# ===========================================
 
 if __name__ == "__main__":
     # Example: Test template matching

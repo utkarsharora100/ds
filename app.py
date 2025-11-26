@@ -5,7 +5,7 @@ import threading
 import os, sys
 import random
 import uuid
-from client.client import Client  # ✅ USING your client simulation
+from client.client import Client  # USING your client simulation
 import requests
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -368,9 +368,9 @@ class App(ctk.CTk):
                     print(f"[TEST] Node {node} unreachable: {e}")
 
             if leader_found:
-                messagebox.showinfo("Raft Test", "✅ Raft Verified: Leader detected and DB change simulated.")
+                messagebox.showinfo("Raft Test", " Raft Verified: Leader detected and DB change simulated.")
             else:
-                messagebox.showwarning("Raft Test", "❌ Raft Verification Failed: No leader detected.")
+                messagebox.showwarning("Raft Test", " Raft Verification Failed: No leader detected.")
 
         threading.Thread(target=run_test).start()
 

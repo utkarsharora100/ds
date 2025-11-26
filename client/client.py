@@ -11,9 +11,8 @@ class Client:
         self.token = None
         self.username = None
 
-    # --------------------------------------------------------------------
-    # 🔐 LOGIN
-    # --------------------------------------------------------------------
+    #  LOGIN
+ 
     def login(self, username: str, password: str):
         """Authenticate user via application server"""
         try:
@@ -25,15 +24,14 @@ class Client:
             if resp["status"] == "success":
                 self.token = resp["token"]
                 self.username = username
-                print(f"[CLIENT-{username}] ✅ Logged in. Token = {self.token}")
+                print(f"[CLIENT-{username}]  Logged in. Token = {self.token}")
             else:
-                print(f"[CLIENT-{username}] ❌ Login failed: {resp['message']}")
+                print(f"[CLIENT-{username}]  Login failed: {resp['message']}")
         except Exception as e:
             print(f"[CLIENT-{username}] ERROR connecting to server: {e}")
 
-    # --------------------------------------------------------------------
-    # 🎬 GET MOVIES LIST
-    # --------------------------------------------------------------------
+    #  GET MOVIES LIST
+    
     def get_movies(self):
         try:
             resp = requests.get(f"{APP_SERVER_URL}/data/movies", params={"token": self.token}).json()
@@ -46,9 +44,8 @@ class Client:
             print(f"[CLIENT-{self.username}] ERROR fetching movies: {e}")
         return []
 
-    # --------------------------------------------------------------------
-    # 🎟️ BOOK SEAT
-    # --------------------------------------------------------------------
+    #  BOOK SEAT
+    
     def book_seat(self, movie, city, seats=1):
         try:
             payload = {
@@ -65,9 +62,7 @@ class Client:
             print(f"[CLIENT-{self.username}] ERROR sending booking request: {e}")
 
 
-# ------------------------------------------------------------------------
-# 🧪 EXECUTION (this is what runs per spawned client)
-# ------------------------------------------------------------------------
+# EXECUTION (this is what runs per spawned client)
 if __name__ == "__main__":
     client = Client()
     username = f"user_{random.randint(1, 9999)}"

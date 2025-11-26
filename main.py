@@ -54,14 +54,14 @@ def main():
     # Remove self from peers
     peers.pop(node_id, None)
     
-    print(f"[{node_id}] 🚀 Starting Raft node on port {port}")
+    print(f"[{node_id}] Starting Raft node on port {port}")
     print(f"[{node_id}] Peers: {list(peers.keys())}")
     
     # Create and start Raft node
     node = RaftNode(node_id, peers)
     
     # Start FastAPI server
-    print(f"[{node_id}] ✅ Raft node ready. Listening on port {port}")
+    print(f"[{node_id}] Raft node ready. Listening on port {port}")
     node.serve(port)
 
 if __name__ == "__main__":

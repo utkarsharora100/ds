@@ -29,9 +29,7 @@ from llm.prompt_templates import (
     OFF_TOPIC_RESPONSE
 )
 
-# -----------------------------
 # Initialize FastAPI app
-# -----------------------------
 app = FastAPI(
     title="Movie Booking LLM Server (Qwen2.5)",
     description="Conversational AI assistant for movie booking system powered by Qwen2.5-0.5B",
@@ -47,9 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------
 # Configuration
-# -----------------------------
 MODEL_NAME = os.getenv("LLM_MODEL", "distilgpt2")
 MAX_NEW_TOKENS = int(os.getenv("LLM_MAX_NEW_TOKENS", "128"))
 TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.8"))
@@ -71,16 +67,12 @@ Key Information:
 
 Please provide helpful, concise answers about the booking system."""
 
-# -----------------------------
 # Global model variables
-# -----------------------------
 tokenizer = None
 model = None
 text_gen_pipeline = None
 
-# -----------------------------
 # Initialize model on startup
-# -----------------------------
 @app.on_event("startup")
 async def load_model():
     global tokenizer, model, text_gen_pipeline
@@ -92,19 +84,19 @@ async def load_model():
         # Load tokenizer and model
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-        # ✅ CRITICAL: DistilGPT-2 needs pad_token configured
+        #  CRITICAL: DistilGPT-2 needs pad_token configured
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
-            print("✅ Configured pad_token = eos_token for DistilGPT-2")
+            print(" Configured pad_token = eos_token for DistilGPT-2")
 
         model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             device_map="auto" if torch.cuda.is_available() else None,
-            low_cpu_mem_usage=True  # ✅ Optimize for CPU
+            low_cpu_mem_usage=True 
         )
 
-        # ✅ Set model to evaluation mode for faster inference
+        #  Set model to evaluation mode for faster inference
         model.eval()
 
         # Also create a pipeline for simpler text generation
@@ -118,13 +110,13 @@ async def load_model():
         )
 
         device = "CUDA" if torch.cuda.is_available() else "CPU"
-        print(f"✅ Model loaded successfully on {device}")
-        print(f"📊 Model parameters: ~82M (DistilGPT-2)")
-        print(f"🎯 Max tokens: {MAX_NEW_TOKENS}, Temperature: {TEMPERATURE}, Top-p: {TOP_P}")
-        print(f"⚡ Expected inference time: 2-3 seconds per request")
+        print(f" Model loaded successfully on {device}")
+        print(f" Model parameters: ~82M (DistilGPT-2)")
+        print(f" Max tokens: {MAX_NEW_TOKENS}, Temperature: {TEMPERATURE}, Top-p: {TOP_P}")
+        print(f" Expected inference time: 2-3 seconds per request")
 
     except Exception as e:
-        print(f"❌ Error loading model: {e}")
+        print(f"Error loading model: {e}")
         raise
 
 # -----------------------------
@@ -273,7 +265,7 @@ async def ask_question(request: QuestionRequest):
             )
             return result[0]["generated_text"].strip()
 
-        # ✅ Use improved response generation with fallback strategy
+        # Use improved response generation with fallback strategy
         # Priority: off-topic detection → template → LLM with few-shot → fallback
         answer = generate_response(
             question=request.question,

@@ -75,7 +75,7 @@ class AdminWindow(ctk.CTk):
         self.seats_entry.grid(row=1, column=2, padx=5, pady=5)
         
         ctk.CTkButton(
-            add_frame, text="➕ Add Movie", 
+            add_frame, text=" Add Movie", 
             command=self.add_movie,
             width=150
         ).grid(row=1, column=3, padx=5, pady=5)
@@ -84,7 +84,7 @@ class AdminWindow(ctk.CTk):
         table_frame = ctk.CTkFrame(self)
         table_frame.pack(pady=10, padx=20, fill="both", expand=True)
         
-        ctk.CTkLabel(table_frame, text="📋 Movies & Seat Availability", font=("Arial", 18)).pack(pady=5)
+        ctk.CTkLabel(table_frame, text="Movies & Seat Availability", font=("Arial", 18)).pack(pady=5)
         
         self.movie_table = ttk.Treeview(
             table_frame, 
@@ -106,7 +106,7 @@ class AdminWindow(ctk.CTk):
         bookings_frame = ctk.CTkFrame(self)
         bookings_frame.pack(pady=10, padx=20, fill="both", expand=True)
         
-        ctk.CTkLabel(bookings_frame, text="📖 All User Bookings", font=("Arial", 18)).pack(pady=5)
+        ctk.CTkLabel(bookings_frame, text="All User Bookings", font=("Arial", 18)).pack(pady=5)
         
         self.bookings_table = ttk.Treeview(
             bookings_frame,
@@ -160,14 +160,14 @@ class AdminWindow(ctk.CTk):
             ).json()
             
             if resp.get("status") == "success":
-                print(f"[ADMIN] ✅ Added: {movie} ({city}) - {seats} seats")
+                print(f"[ADMIN] Added: {movie} ({city}) - {seats} seats")
                 self.movie_entry.delete(0, 'end')
                 self.city_entry.delete(0, 'end')
                 self.seats_entry.delete(0, 'end')
                 self.seats_entry.insert(0, "100")
                 self.refresh_data()
             else:
-                print(f"[ADMIN] ❌ Failed: {resp.get('message')}")
+                print(f"[ADMIN] Failed: {resp.get('message')}")
         except Exception as e:
             print(f"[ADMIN] Error adding movie: {e}")
     
@@ -196,7 +196,7 @@ class AdminWindow(ctk.CTk):
                             movie_info.get("seats", "N/A")
                         )
                     )
-                self.status_label.configure(text=f"🔄 Last refresh: {time.strftime('%H:%M:%S')} | Movies: {len(movies_data)}")
+                self.status_label.configure(text=f" Last refresh: {time.strftime('%H:%M:%S')} | Movies: {len(movies_data)}")
         except Exception as e:
             print(f"[ADMIN] Error refreshing movies: {e}")
         
@@ -347,7 +347,7 @@ class ClientWindow(ctk.CTk):
         
         ctk.CTkButton(
             booking_frame,
-            text="🎫 Book Selected",
+            text=" Book Selected",
             command=self.book_movie,
             width=150
         ).pack(side="left", padx=5)
@@ -358,7 +358,7 @@ class ClientWindow(ctk.CTk):
         
         ctk.CTkLabel(
             bookings_frame,
-            text="📋 My Bookings",
+            text=" My Bookings",
             font=("Arial", 18, "bold")
         ).pack(pady=5)
         
@@ -381,7 +381,7 @@ class ClientWindow(ctk.CTk):
         # Status
         self.status_label = ctk.CTkLabel(
             self, 
-            text="🔄 Connected", 
+            text=" Connected", 
             font=("Arial", 12)
         )
         self.status_label.pack(pady=5)
@@ -424,11 +424,11 @@ class ClientWindow(ctk.CTk):
             ).json()
             
             if resp.get("status") == "success":
-                print(f"[{self.username}] ✅ Booked {seats} seats for {movie}")
+                print(f"[{self.username}] Booked {seats} seats for {movie}")
                 self.refresh_data()
             else:
                 messagebox.showerror("Booking Failed", resp.get("message", "Unknown error"))
-                print(f"[{self.username}] ❌ Booking failed: {resp.get('message')}")
+                print(f"[{self.username}] Booking failed: {resp.get('message')}")
         except Exception as e:
             messagebox.showerror("Error", f"Booking error: {e}")
     
@@ -494,7 +494,7 @@ class ClientWindow(ctk.CTk):
                         )
                 
                 self.status_label.configure(
-                    text=f"🔄 {time.strftime('%H:%M:%S')} | My Bookings: {len(my_bookings)}"
+                    text=f" {time.strftime('%H:%M:%S')} | My Bookings: {len(my_bookings)}"
                 )
         except Exception as e:
             print(f"[{self.username}] Error refreshing bookings: {e}")
@@ -531,23 +531,23 @@ def launch_client(username, position):
 # ----------------------------------------------------------------------------
 if __name__ == "__main__":
     print("=" * 80)
-    print("🎬 MULTI-WINDOW DISTRIBUTED MOVIE BOOKING SYSTEM")
+    print(" MULTI-WINDOW DISTRIBUTED MOVIE BOOKING SYSTEM")
     print("=" * 80)
-    print("\n🚀 Launching windows:")
+    print("\n Launching windows:")
     print("   1. Admin Dashboard (left)")
     print("   2. Client: alice (right-top)")
     print("   3. Client: bob (right-middle)")
     print("   4. Client: charlie (right-bottom)")
-    print("\n📋 Demonstration Flow:")
+    print("\n Demonstration Flow:")
     print("   → Admin adds movies with seat counts")
     print("   → All 3 clients see movies instantly (Raft sync)")
     print("   → Clients book tickets independently")
     print("   → Seats decrement in real-time across all windows")
     print("   → Each client sees ONLY their own bookings")
     print("   → Admin sees ALL bookings from all users")
-    print("\n✅ This showcases Raft consensus and data consistency!")
+    print("\n This showcases Raft consensus and data consistency!")
     print("=" * 80)
-    print("\n⏳ Starting windows in 2 seconds...\n")
+    print("\n Starting windows in 2 seconds...\n")
     
     time.sleep(2)
     
@@ -566,7 +566,7 @@ if __name__ == "__main__":
         client_processes.append(client_process)
         time.sleep(0.5)
     
-    print("\n✅ All windows launched!")
+    print("\n All windows launched!")
     print("💡 Tip: Try these actions to see Raft consistency:")
     print("   1. Admin: Add a movie (e.g., 'Inception', 'Delhi', 100 seats)")
     print("   2. Watch all 3 clients auto-refresh and show the new movie")
@@ -575,7 +575,7 @@ if __name__ == "__main__":
     print("   5. Watch seat count drop to 65 in ALL windows")
     print("   6. Check 'My Bookings' - each user sees only their own bookings")
     print("   7. Admin: See ALL bookings from alice, bob, and charlie")
-    print("\n🛑 Close any window to exit\n")
+    print("\n Close any window to exit\n")
     
     # Wait for admin process to finish
     admin_process.join()

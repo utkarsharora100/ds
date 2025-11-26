@@ -3,7 +3,6 @@ import random
 import time
 import httpx
 
-# ✅ NEW
 from fastapi import FastAPI, Request
 import uvicorn
 
@@ -18,7 +17,7 @@ class RaftNode:
         self.leader_id = None
         self.running = True
 
-        # ✅ Optimized timing for Docker environment
+    
         self.HEARTBEAT_INTERVAL = 0.05      # 50ms (20 heartbeats/sec)
         self.ELECTION_TIMEOUT_MIN = 0.5     # 500ms
         self.ELECTION_TIMEOUT_MAX = 1.0     # 1000ms
@@ -39,7 +38,7 @@ class RaftNode:
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
-        # ✅ NEW — attach FastAPI app
+        #  NEW — attach FastAPI app
         self.app = FastAPI()
         self._register_routes()
 
@@ -112,9 +111,9 @@ class RaftNode:
             if votes >= majority:
                 self.state = "leader"
                 self.leader_id = self.node_id
-                print(f"[{self.node_id}] 🏆 is the LEADER now (term {self.term}, votes {votes}/{total_nodes})")
+                print(f"[{self.node_id}] is the LEADER now (term {self.term}, votes {votes}/{total_nodes})")
 
-                # ✅ CRITICAL: Start heartbeat loop immediately
+                # CRITICAL: Start heartbeat loop immediately
                 if hasattr(self, '_heartbeat_thread') and self._heartbeat_thread:
                     # Cancel any existing heartbeat thread
                     self._stop_heartbeat = True
@@ -126,7 +125,7 @@ class RaftNode:
                 print(f"[{self.node_id}] Started heartbeat loop")
             else:
                 self.state = "follower"
-                print(f"[{self.node_id}] ❌ Election failed (term {self.term}, votes {votes}/{total_nodes})")
+                print(f"[{self.node_id}] Election failed (term {self.term}, votes {votes}/{total_nodes})")
 
             # Reset election timeout for next term
             self.election_timeout = self._reset_timeout()
@@ -204,7 +203,6 @@ class RaftNode:
 
         print(f"[{self.node_id}] Stopped heartbeat loop")
 
-    # ✅ NEW — FastAPI routes (status + simple manual endpoints)
     def _register_routes(self):
 
         @self.app.get("/status")
@@ -237,7 +235,7 @@ class RaftNode:
                 if leader_term < self.term:
                     return {"success": False, "term": self.term}
 
-                # ✅ CRITICAL: Reset election timer (received valid heartbeat)
+                
                 self.last_heartbeat_time = time.time()
                 self.leader_id = leader_id
 
@@ -264,7 +262,7 @@ class RaftNode:
                 if candidate_term > self.term:
                     self.term = candidate_term
                     self.voted_for = None
-                    # ✅ Step down if we were leader/candidate
+                    
                     if self.state in ["leader", "candidate"]:
                         old_state = self.state
                         self.state = "follower"
@@ -292,6 +290,5 @@ class RaftNode:
             self._start_election()
             return {"message": "Election manually triggered."}
 
-    # ✅ NEW — serve FastAPI
     def serve(self, port: int):
         uvicorn.run(self.app, host="0.0.0.0", port=port)
