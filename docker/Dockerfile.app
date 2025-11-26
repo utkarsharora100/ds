@@ -1,5 +1,5 @@
 # Optimized Dockerfile for Application Server
-# Uses lightweight requirements without LLM dependencies
+# Serves both API and Frontend
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 # Copy ONLY base requirements (no LLM dependencies)
-COPY requirements-base.txt .
+COPY requirements/requirements-base.txt .
 
 # Install Python dependencies quickly (no timeout issues!)
 RUN pip install --no-cache-dir --upgrade pip && \
@@ -23,6 +23,9 @@ COPY Application_server/ ./Application_server/
 COPY llm/ ./llm/
 COPY proto/ ./proto/
 COPY raft/ ./raft/
+
+# Copy frontend files
+COPY web/ ./web/
 
 # Expose port
 EXPOSE 9000

@@ -76,3 +76,9 @@ raft_state/
 temp/
 tmp/
 .claude/agents/
+
+# Archive folder (deprecated files)
+archive/
+
+# Chat history (development notes)
+CHAT_HISTORY.md

@@ -4,8 +4,9 @@ import os
 import sys
 from typing import Dict, Any
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import uvicorn
 import httpx
 
@@ -324,11 +325,12 @@ async def proxy_llm_ask(req: Request):
 
 @app.get("/proxy/raft/{node_id}/status")
 async def proxy_raft_status(node_id: str):
-    """Proxy endpoint for Raft node status"""
+    """Proxy endpoint for Raft node HTTP status server"""
     try:
-        port_map = {"1": "50051", "2": "50052", "3": "50053"}
-        port = port_map.get(node_id, "50051")
-        raft_url = os.environ.get(f"RAFT_NODE{node_id}_URL", f"http://raft-node{node_id}:{port}")
+        # HTTP status ports (gRPC port + 1000): 51051, 51052, 51053
+        http_port_map = {"1": "51051", "2": "51052", "3": "51053"}
+        http_port = http_port_map.get(node_id, "51051")
+        raft_url = os.environ.get(f"RAFT_NODE{node_id}_HTTP_URL", f"http://raft-node{node_id}:{http_port}")
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.get(f"{raft_url}/status")
             return JSONResponse(response.json())
@@ -371,12 +373,13 @@ async def check_all_health():
             "service": "llm-server"
         }
 
-    # Raft nodes (critical services)
+    # Raft nodes (critical services) - using HTTP status ports
     for node_id in [1, 2, 3]:
         try:
-            port_map = {1: "50051", 2: "50052", 3: "50053"}
-            port = port_map[node_id]
-            raft_url = os.environ.get(f"RAFT_NODE{node_id}_URL", f"http://raft-node{node_id}:{port}")
+            # HTTP status ports (gRPC port + 1000): 51051, 51052, 51053
+            http_port_map = {1: "51051", 2: "51052", 3: "51053"}
+            http_port = http_port_map[node_id]
+            raft_url = os.environ.get(f"RAFT_NODE{node_id}_HTTP_URL", f"http://raft-node{node_id}:{http_port}")
             async with httpx.AsyncClient(timeout=3.0) as client:
                 response = await client.get(f"{raft_url}/status")
                 node_data = response.json()
@@ -401,6 +404,40 @@ async def check_all_health():
             }
 
     return JSONResponse(results)
+
+# ---------------------- STATIC FILES & FRONTEND ----------------------
+# Determine web directory path (works in both Docker and local)
+WEB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web")
+
+# Serve index.html at root
+@app.get("/")
+async def serve_root():
+    index_path = os.path.join(WEB_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
+    return JSONResponse({"error": "Frontend not found", "web_dir": WEB_DIR})
+
+# Serve CSS file
+@app.get("/styles.css")
+async def serve_css():
+    css_path = os.path.join(WEB_DIR, "styles.css")
+    if os.path.exists(css_path):
+        return FileResponse(css_path, media_type="text/css")
+    return JSONResponse({"error": "CSS not found"}, status_code=404)
+
+# Serve JS file
+@app.get("/app.js")
+async def serve_js():
+    js_path = os.path.join(WEB_DIR, "app.js")
+    if os.path.exists(js_path):
+        return FileResponse(js_path, media_type="application/javascript")
+    return JSONResponse({"error": "JS not found"}, status_code=404)
+
+# Mount static files for any other assets
+if os.path.exists(WEB_DIR):
+    print(f"[SERVER] 📁 Frontend files loaded from {WEB_DIR}")
+else:
+    print(f"[SERVER] ⚠️  Web directory not found at {WEB_DIR}")
 
 # ---------------------- SERVER STARTUP ----------------------
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ import os
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from raft.raft_node import RaftNode
+# Using gRPC-based Raft implementation
+from raft.raft_node_grpc import RaftNode
 
 def main():
     if len(sys.argv) < 2:
@@ -53,15 +54,19 @@ def main():
     
     # Remove self from peers
     peers.pop(node_id, None)
-    
-    print(f"[{node_id}] 🚀 Starting Raft node on port {port}")
-    print(f"[{node_id}] Peers: {list(peers.keys())}")
-    
-    # Create and start Raft node
-    node = RaftNode(node_id, peers)
-    
-    # Start FastAPI server
-    print(f"[{node_id}] ✅ Raft node ready. Listening on port {port}")
+
+    # Get MongoDB URL from environment (set by Docker Compose)
+    mongodb_url = os.environ.get("RAFT_MONGODB_URL")
+
+    print(f"[{node_id}] Starting Raft node on port {port}", flush=True)
+    print(f"[{node_id}] MongoDB URL: {mongodb_url or 'default (localhost)'}", flush=True)
+    print(f"[{node_id}] Peers: {list(peers.keys())}", flush=True)
+
+    # Create and start Raft node with MongoDB persistence
+    node = RaftNode(node_id, peers, mongodb_url)
+
+    # Start gRPC server
+    print(f"[{node_id}] Raft node ready. gRPC listening on port {port}", flush=True)
     node.serve(port)
 
 if __name__ == "__main__":

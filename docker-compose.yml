@@ -43,56 +43,122 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  # MongoDB for Raft Node 1 persistence
+  mongodb-raft1:
+    image: mongo:7.0
+    container_name: mongodb-raft-node1
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb-raft1-data:/data/db
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # MongoDB for Raft Node 2 persistence
+  mongodb-raft2:
+    image: mongo:7.0
+    container_name: mongodb-raft-node2
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongodb-raft2-data:/data/db
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  # MongoDB for Raft Node 3 persistence
+  mongodb-raft3:
+    image: mongo:7.0
+    container_name: mongodb-raft-node3
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongodb-raft3-data:/data/db
+    networks:
+      - movie-booking-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
   # Raft Node 1 - Consensus layer
   raft-node1:
     build:
       context: .
       dockerfile: docker/Dockerfile.raft
-    container_name: raft-node1
+    container_name: mtbs-raft-node1
     command: ["node1"]
     ports:
-      - "50051:50051"
+      - "50061:50051"   # gRPC port
+      - "51061:51051"   # HTTP status port
     environment:
       - DOCKER_ENV=true
+      - PYTHONUNBUFFERED=1
+      - RAFT_MONGODB_URL=mongodb://mongodb-raft1:27017/
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
+    depends_on:
+      mongodb-raft1:
+        condition: service_healthy
 
   # Raft Node 2 - Consensus layer
   raft-node2:
     build:
       context: .
       dockerfile: docker/Dockerfile.raft
-    container_name: raft-node2
+    container_name: mtbs-raft-node2
     command: ["node2"]
     ports:
-      - "50052:50052"
+      - "50062:50052"   # gRPC port
+      - "51062:51052"   # HTTP status port
     environment:
       - DOCKER_ENV=true
+      - PYTHONUNBUFFERED=1
+      - RAFT_MONGODB_URL=mongodb://mongodb-raft2:27017/
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
+    depends_on:
+      mongodb-raft2:
+        condition: service_healthy
 
   # Raft Node 3 - Consensus layer
   raft-node3:
     build:
       context: .
       dockerfile: docker/Dockerfile.raft
-    container_name: raft-node3
+    container_name: mtbs-raft-node3
     command: ["node3"]
     ports:
-      - "50053:50053"
+      - "50063:50053"   # gRPC port
+      - "51063:51053"   # HTTP status port
     environment:
       - DOCKER_ENV=true
+      - PYTHONUNBUFFERED=1
+      - RAFT_MONGODB_URL=mongodb://mongodb-raft3:27017/
     networks:
       - movie-booking-network
-    depends_on:
-      - app-server
     restart: unless-stopped
+    depends_on:
+      mongodb-raft3:
+        condition: service_healthy
 
   # LLM Server - FAQ Assistant (optional, can be disabled)
   llm-server:
@@ -131,4 +197,10 @@ networks:
 
 volumes:
   mongodb-data:
+    driver: local
+  mongodb-raft1-data:
+    driver: local
+  mongodb-raft2-data:
+    driver: local
+  mongodb-raft3-data:
     driver: local

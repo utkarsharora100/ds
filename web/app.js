@@ -3,8 +3,8 @@ let currentUser = null;
 let authToken = null;
 let currentBooking = null;
 
-// API Base URL - Change this to your server IP when needed
-const API_BASE = 'http://127.0.0.1:9000';
+// API Base URL - Uses same origin (works in Docker and local)
+const API_BASE = window.location.origin;
 
 // ============================================================================
 // UTILITY FUNCTIONS
